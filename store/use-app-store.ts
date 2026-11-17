@@ -17,16 +17,21 @@ import {
   STUDENTS_DATA,
 } from '@/data/mock-data';
 import { INITIAL_SWOT_ITEMS, SwotItem } from '@/lib/labs/management';
+import { isSuperAdminEmail } from '@/lib/auth-constants';
 
-function setRoleCookie(role: UserRole | null) {
+function setRoleCookie(role: UserRole | null, email?: string | null) {
   if (typeof document === 'undefined') return;
   if (!role) {
     document.cookie = 'seftlab_role=; path=/; max-age=0; SameSite=Lax';
     document.cookie = 'tadreebak_role=; path=/; max-age=0; SameSite=Lax';
+    document.cookie = 'seftlab_email=; path=/; max-age=0; SameSite=Lax';
     return;
   }
   document.cookie = `seftlab_role=${role}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
   document.cookie = `tadreebak_role=${role}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+  if (email) {
+    document.cookie = `seftlab_email=${encodeURIComponent(email.toLowerCase().trim())}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+  }
 }
 
 export const DEMO_STUDENT_USER: UserSession = {
@@ -315,19 +320,26 @@ export const useAppStore = create<AppState>()(
       },
 
       loginUser: (user) => {
-        setRoleCookie(user.role);
-        const photo = user.avatarUrl || user.photoURL || '';
-        const initials = user.name
-          ? user.name
+        const isSuper = isSuperAdminEmail(user.email);
+        const effectiveRole: UserRole = isSuper ? 'admin' : user.role;
+        const effectiveUser: UserSession = {
+          ...user,
+          role: effectiveRole,
+        };
+
+        setRoleCookie(effectiveRole, effectiveUser.email);
+        const photo = effectiveUser.avatarUrl || effectiveUser.photoURL || '';
+        const initials = effectiveUser.name
+          ? effectiveUser.name
               .split(' ')
               .filter(Boolean)
               .map((w) => w[0])
               .slice(0, 2)
-              .join('') || user.name.slice(0, 2)
+              .join('') || effectiveUser.name.slice(0, 2)
           : 'م';
 
         set((state) => ({
-          user,
+          user: effectiveUser,
           currentStudent: {
             ...state.currentStudent,
             id: user.id,

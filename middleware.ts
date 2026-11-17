@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UserRole } from '@/types';
 import { verifySignedSessionToken } from '@/lib/session';
+import { isSuperAdminEmail } from '@/lib/auth-constants';
 
 const VALID_ROLES: UserRole[] = ['student', 'teacher', 'company', 'admin'];
 
@@ -28,6 +29,53 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const roleCookie = (
+    request.cookies.get('seftlab_role')?.value ||
+    request.cookies.get('tadreebak_role')?.value
+  ) as UserRole | undefined;
+
+  const rawEmailCookie = request.cookies.get('seftlab_email')?.value;
+  const emailCookie = rawEmailCookie ? decodeURIComponent(rawEmailCookie).toLowerCase().trim() : undefined;
+  const sessionCookie = request.cookies.get('seftlab_session')?.value;
+
+  // Verify cryptographic session if present
+  let sessionRole: string | undefined = undefined;
+  let sessionEmail: string | undefined = undefined;
+
+  if (sessionCookie) {
+    try {
+      const verified = await verifySignedSessionToken<{
+        role?: string;
+        email?: string;
+      }>(sessionCookie);
+      if (verified) {
+        sessionRole = verified.role;
+        sessionEmail = verified.email;
+      }
+    } catch {}
+  }
+
+  // Check if current user is Super Admin (hasanalarjan@gmail.com)
+  const effectiveEmail = emailCookie || sessionEmail;
+  const isSuperAdmin = isSuperAdminEmail(effectiveEmail) || isSuperAdminEmail(searchParams.get('email'));
+
+  if (isSuperAdmin) {
+    const response = NextResponse.next();
+    response.cookies.set('seftlab_role', 'admin', {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
+      sameSite: 'lax',
+    });
+    if (effectiveEmail) {
+      response.cookies.set('seftlab_email', encodeURIComponent(effectiveEmail), {
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7,
+        sameSite: 'lax',
+      });
+    }
+    return response;
+  }
+
   // Support explicit role switch query param (?role=...) in development or from /unauthorized
   const forcedRole = searchParams.get('role') as UserRole | null;
   if (
@@ -46,32 +94,16 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  const roleCookie = (
-    request.cookies.get('seftlab_role')?.value ||
-    request.cookies.get('tadreebak_role')?.value
-  ) as UserRole | undefined;
-
-  const sessionCookie = request.cookies.get('seftlab_session')?.value;
-
-  // Cryptographic session verification for Admin routes (prevents cookie tampering/forgery)
+  // Protection for Admin routes
   if (requiredRole === 'admin') {
-    if (!sessionCookie) {
-      const unauthorizedUrl = new URL('/unauthorized', request.url);
-      unauthorizedUrl.searchParams.set('required', 'admin');
-      unauthorizedUrl.searchParams.set('from', pathname);
-      return NextResponse.redirect(unauthorizedUrl);
+    if (sessionRole === 'admin' || roleCookie === 'admin') {
+      return NextResponse.next();
     }
 
-    const verifiedSession = await verifySignedSessionToken<{
-      role?: string;
-    }>(sessionCookie);
-
-    if (!verifiedSession || verifiedSession.role !== 'admin') {
-      const unauthorizedUrl = new URL('/unauthorized', request.url);
-      unauthorizedUrl.searchParams.set('required', 'admin');
-      unauthorizedUrl.searchParams.set('from', pathname);
-      return NextResponse.redirect(unauthorizedUrl);
-    }
+    const unauthorizedUrl = new URL('/unauthorized', request.url);
+    unauthorizedUrl.searchParams.set('required', 'admin');
+    unauthorizedUrl.searchParams.set('from', pathname);
+    return NextResponse.redirect(unauthorizedUrl);
   }
 
   // Cross-role protection: if user has a role cookie and it doesn't match the target dashboard
@@ -84,7 +116,7 @@ export async function middleware(request: NextRequest) {
 
   // If no role cookie exists yet on non-admin dashboard, initialize it to match entry dashboard
   const response = NextResponse.next();
-  if (!roleCookie && requiredRole !== 'admin') {
+  if (!roleCookie) {
     response.cookies.set('seftlab_role', requiredRole, {
       path: '/',
       maxAge: 60 * 60 * 24 * 7,

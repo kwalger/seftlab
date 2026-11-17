@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { collection, onSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { UserRole } from '@/types';
+import { isSuperAdminEmail } from '@/lib/auth-constants';
 
 export interface LiveFirestoreUser {
   id: string;
@@ -75,12 +76,15 @@ export function useFirestoreUsers() {
               }
             }
 
+            const email = data.email || '';
+            const isSuper = isSuperAdminEmail(email);
+
             return {
               id: docSnap.id,
-              name: data.name || data.fullName || (data.email ? data.email.split('@')[0] : 'مستخدم مسجل'),
-              email: data.email || '',
-              role: (data.role || 'student') as UserRole,
-              status: normalizeUserStatus(rawStatus),
+              name: data.name || data.fullName || (email ? email.split('@')[0] : 'مستخدم مسجل'),
+              email: email,
+              role: (isSuper ? 'admin' : data.role || 'student') as UserRole,
+              status: isSuper ? 'نشط' : normalizeUserStatus(rawStatus),
               organizationOrUniversity:
                 data.organizationOrUniversity ||
                 data.universityOrOrg ||

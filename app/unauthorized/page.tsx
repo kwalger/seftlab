@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -10,10 +10,12 @@ import {
   GraduationCap,
   BookOpen,
   ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { UserRole } from '@/types';
 import { Button } from '@/components/ui/button';
+import { isSuperAdminEmail } from '@/lib/auth-constants';
 
 const IS_DEV = process.env.NODE_ENV === 'development';
 
@@ -35,13 +37,42 @@ function UnauthorizedContent() {
       ? reqParam
       : 'student';
 
-  const currentRole: UserRole = user?.role || 'student';
-  const targetPath =
-    searchParams.get('from') || ROLE_LABELS[requiredRole].home;
+  const isSuperAdmin = isSuperAdminEmail(user?.email);
+  const currentRole: UserRole = isSuperAdmin ? 'admin' : (user?.role || 'student');
+  const targetPath = searchParams.get('from') || ROLE_LABELS[requiredRole].home;
+
+  // Super Admin auto-recovery fallback: if Hasan Alarjan hits 403, immediately grant admin and redirect
+  useEffect(() => {
+    if (user?.email && isSuperAdminEmail(user.email)) {
+      console.log('🛡️ [UnauthorizedPage] Super Admin detected:', {
+        uid: user.id,
+        email: user.email,
+        name: user.name,
+        targetPath,
+      });
+
+      document.cookie = `seftlab_role=admin; path=/; max-age=604800; SameSite=Lax`;
+      document.cookie = `tadreebak_role=admin; path=/; max-age=604800; SameSite=Lax`;
+      document.cookie = `seftlab_email=${encodeURIComponent(user.email)}; path=/; max-age=604800; SameSite=Lax`;
+
+      switchRole('admin');
+      router.replace(targetPath.startsWith('/admin') ? targetPath : '/admin');
+    }
+  }, [user, router, switchRole, targetPath]);
 
   const handleSwitchAndContinue = () => {
     switchRole(requiredRole);
     router.push(`${targetPath}?role=${requiredRole}`);
+  };
+
+  const handleSuperAdminEntry = () => {
+    document.cookie = `seftlab_role=admin; path=/; max-age=604800; SameSite=Lax`;
+    document.cookie = `tadreebak_role=admin; path=/; max-age=604800; SameSite=Lax`;
+    if (user?.email) {
+      document.cookie = `seftlab_email=${encodeURIComponent(user.email)}; path=/; max-age=604800; SameSite=Lax`;
+    }
+    switchRole('admin');
+    router.push('/admin');
   };
 
   return (
@@ -65,7 +96,27 @@ function UnauthorizedContent() {
           فقط، ولا يمكن الدخول إليه بالحساب الحالي ({ROLE_LABELS[currentRole].name}).
         </p>
 
-        {IS_DEV && (
+        {/* Super Admin Direct Bypass Card */}
+        {isSuperAdmin && (
+          <div className="mt-5 rounded-[12px] border border-blue-200 bg-blue-50/70 p-4 dark:border-blue-900/60 dark:bg-blue-950/40">
+            <div className="flex items-center gap-2 text-xs font-semibold text-blue-800 dark:text-blue-300">
+              <Sparkles className="h-4 w-4" />
+              <span>تم التعرف على حسابك كـ Super Admin ({user?.email})</span>
+            </div>
+            <p className="mt-1 text-xs text-blue-700 dark:text-blue-400">
+              لديك صلاحيات إدارة النظام العليا الكاملة. انقر أدناه للدخول فوراً:
+            </p>
+            <Button
+              onClick={handleSuperAdminEntry}
+              className="mt-3 w-full gap-2 bg-[#2F6BFF] text-white hover:bg-blue-600"
+            >
+              <ShieldCheck className="h-4 w-4 stroke-[1.5]" />
+              <span>الدخول الفوري إلى لوحة إدارة النظام (/admin)</span>
+            </Button>
+          </div>
+        )}
+
+        {IS_DEV && !isSuperAdmin && (
           <div className="mt-5 rounded-[12px] border border-[#E3E8F0] bg-[#F1F4F9] p-4 dark:border-[#1E325C] dark:bg-[#070D1F]">
             <p className="text-xs font-medium text-[#0A1630] dark:text-[#FAFBFC]">
               وضع التطوير والتجربة السريعة (DEV ONLY):

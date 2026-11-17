@@ -9,8 +9,9 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db, googleProvider } from '@/lib/firebase';
+import { isSuperAdminEmail, resolveUserRole } from '@/lib/auth-constants';
 import { useAppStore } from '@/store/use-app-store';
 import { useAdminStore } from '@/store/use-admin-store';
 import { useKeyboardOffset } from '@/hooks/use-keyboard-offset';
@@ -43,32 +44,57 @@ function GoogleIcon({ className }: { className?: string }) {
   );
 }
 
-// دالة فحص وتحديث وثيقة المستخدم في Firestore مع مهلة زمنية لضمان عدم تعليق المتصفح
+// دالة فحص وتحديث وثيقة المستخدم في Firestore مع دعم السوبر أدمن والاستعلام المرن
 async function syncFirestoreUser(
   uid: string,
   email: string | null,
   displayName: string | null,
   photoURL: string | null
 ): Promise<{ role: UserRole; name: string; photoURL?: string }> {
-  let role: UserRole = 'student';
+  const isSuper = isSuperAdminEmail(email);
+  let role: UserRole = isSuper ? 'admin' : 'student';
   let name = displayName || (email ? email.split('@')[0] : 'مستخدم');
   let finalPhoto = photoURL || '';
 
   try {
     const userDocRef = doc(db, 'users', uid);
 
-    // مهلة زمنية 3.5 ثانية للفايرستور لضمان عدم التعليق في حال عدم تفعيل قاعدة البيانات في الكونسول
+    // مهلة زمنية 3.5 ثانية للفايرستور لضمان عدم التعليق في حال بطء الشبكة
     const timeout = new Promise<null>((_, reject) =>
       setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), 3500)
     );
 
-    const docSnap = await Promise.race([getDoc(userDocRef), timeout]);
+    let docSnap: any = await Promise.race([getDoc(userDocRef), timeout]).catch(() => null);
+
+    // محاولة البحث بالبريد الإلكتروني كمعرّف وثيقة في حال لم يُعثر عليه بالـ UID
+    if ((!docSnap || !docSnap.exists()) && email) {
+      const emailDocRef = doc(db, 'users', email.toLowerCase().trim());
+      docSnap = await Promise.race([getDoc(emailDocRef), timeout]).catch(() => null);
+    }
+
+    // محاولة الاستعلام بحقل البريد الإلكتروني في المجموعة
+    if ((!docSnap || !docSnap.exists()) && email) {
+      const q = query(
+        collection(db, 'users'),
+        where('email', '==', email.toLowerCase().trim())
+      );
+      const querySnap: any = await Promise.race([getDocs(q), timeout]).catch(() => null);
+      if (querySnap && !querySnap.empty) {
+        docSnap = querySnap.docs[0];
+      }
+    }
 
     if (docSnap && docSnap.exists()) {
       const data = docSnap.data();
-      if (data.role) role = data.role as UserRole;
-      if (data.name) name = data.name;
-      if (data.photoURL) finalPhoto = data.photoURL;
+      const rawRole = (data.role as UserRole) || 'student';
+      role = resolveUserRole(email, rawRole);
+      if (data.name || data.fullName) name = data.name || data.fullName;
+      if (data.photoURL || data.avatarUrl) finalPhoto = data.photoURL || data.avatarUrl;
+
+      // ترقية المستخدم في Firestore إلى أدمن إذا كان مسجلاً كسوبر أدمن
+      if (isSuper && rawRole !== 'admin') {
+        setDoc(userDocRef, { role: 'admin' }, { merge: true }).catch(() => {});
+      }
     } else {
       // مستخدم جديد يسجل لأول مرة في Firebase
       await Promise.race([
@@ -76,16 +102,23 @@ async function syncFirestoreUser(
           name: name,
           email: email || '',
           photoURL: photoURL || '',
-          role: 'student',
+          role: isSuper ? 'admin' : 'student',
           createdAt: new Date().toISOString(),
         }),
         timeout,
       ]).catch(() => {});
-      role = 'student';
+      role = isSuper ? 'admin' : 'student';
     }
   } catch (err) {
     console.warn('Firestore sync note:', err);
   }
+
+  console.log('🔑 [Login] Firestore sync result:', {
+    uid,
+    email,
+    resolvedRole: role,
+    isSuperAdmin: isSuper,
+  });
 
   return { role, name, photoURL: finalPhoto };
 }
@@ -110,17 +143,37 @@ export default function LoginPage() {
     role: UserRole,
     photoURL?: string | null
   ) => {
+    const isSuper = isSuperAdminEmail(email);
+    const effectiveRole: UserRole = isSuper ? 'admin' : role;
+
     // تعيين الكوكيز للـ Middleware
-    document.cookie = `seftlab_role=${role}; path=/; max-age=604800; SameSite=Lax`;
-    document.cookie = `tadreebak_role=${role}; path=/; max-age=604800; SameSite=Lax`;
+    document.cookie = `seftlab_role=${effectiveRole}; path=/; max-age=604800; SameSite=Lax`;
+    document.cookie = `tadreebak_role=${effectiveRole}; path=/; max-age=604800; SameSite=Lax`;
+    if (email) {
+      document.cookie = `seftlab_email=${encodeURIComponent(email.toLowerCase().trim())}; path=/; max-age=604800; SameSite=Lax`;
+    }
+
+    // إرسال طلب لمسار المزامنة في الـ Edge لإنشاء كوكي الجلسة الموقّع
+    if (typeof fetch !== 'undefined') {
+      fetch('/api/auth/sync-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid,
+          email: email || '',
+          name,
+          role: effectiveRole,
+        }),
+      }).catch(() => {});
+    }
 
     const session: UserSession = {
       id: uid,
       name: name,
       username: email ? email.split('@')[0] : 'user',
       email: email || '',
-      role: role,
-      organizationOrUniversity: role === 'teacher' ? 'جامعة الزرقاء' : 'جامعة الزرقاء',
+      role: effectiveRole,
+      organizationOrUniversity: effectiveRole === 'teacher' ? 'جامعة الزرقاء' : 'جامعة الزرقاء',
       approvalStatus: 'approved',
       avatarUrl: photoURL || undefined,
       photoURL: photoURL || undefined,
@@ -129,16 +182,18 @@ export default function LoginPage() {
 
     recordAuditAction(
       'تسجيل دخول',
-      `دخول حقيقي عبر Firebase (${role}): ${name}`,
+      `دخول حقيقي عبر Firebase (${effectiveRole}): ${name}`,
       name,
-      role
+      effectiveRole
     );
 
     triggerHaptic('success');
     toast.success(`مرحباً بك، ${name}`);
 
     // التوجيه إلى اللوحة المطلوبة
-    if (role === 'teacher') {
+    if (effectiveRole === 'admin') {
+      router.push('/admin');
+    } else if (effectiveRole === 'teacher') {
       router.push('/teacher-dashboard');
     } else {
       router.push('/student-dashboard');
