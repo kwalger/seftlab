@@ -4,6 +4,12 @@ import { STUDENTS_DATA } from '@/data/mock-data';
 import { StudentProfileClient } from '@/components/students/student-profile-client';
 import { getPersonJsonLd, getBreadcrumbJsonLd } from '@/lib/seo/json-ld';
 
+export function generateStaticParams() {
+  return [];
+}
+
+export const dynamicParams = true;
+
 interface PageProps {
   params: Promise<{ username: string }>;
 }
