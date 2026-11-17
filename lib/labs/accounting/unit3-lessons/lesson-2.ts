@@ -3,7 +3,7 @@ import type { UnitLessonData } from '../unit1-lessons/types';
 export const lesson2: UnitLessonData = {
   id: 'u3-lesson-2',
   lessonNumber: 2,
-  title: 'دفتر اليومية العامة وتسجيل العمليات المالية',
+  title: 'كيفية تسجيل العمليات وعمل قيود اليومية',
   estimatedMinutes: 8,
   xpReward: 45,
   openingQuestion: {

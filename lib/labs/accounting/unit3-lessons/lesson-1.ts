@@ -3,7 +3,7 @@ import type { UnitLessonData } from '../unit1-lessons/types';
 export const lesson1: UnitLessonData = {
   id: 'u3-lesson-1',
   lessonNumber: 1,
-  title: 'الطرف المدين والطرف الدائن وقاعدة القيد المزدوج',
+  title: 'معرفة الطرف المدين والطرف الدائن للقيد المحاسبي',
   estimatedMinutes: 7,
   xpReward: 45,
   openingQuestion: {

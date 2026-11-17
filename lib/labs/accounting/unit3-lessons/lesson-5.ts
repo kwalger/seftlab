@@ -3,7 +3,7 @@ import type { UnitLessonData } from '../unit1-lessons/types';
 export const lesson5: UnitLessonData = {
   id: 'u3-lesson-5',
   lessonNumber: 5,
-  title: 'إعداد ميزان المراجعة بالمجاميع والأرصدة',
+  title: 'كيفية الترحيل إلى دفتر الأستاذ',
   estimatedMinutes: 8,
   xpReward: 45,
   openingQuestion: {

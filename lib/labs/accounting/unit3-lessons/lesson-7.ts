@@ -3,7 +3,7 @@ import type { UnitLessonData } from '../unit1-lessons/types';
 export const lesson7: UnitLessonData = {
   id: 'u3-lesson-7',
   lessonNumber: 7,
-  title: 'حل أسئلة وتطبيقات الفصل الثالث الشاملة',
+  title: 'التعرف على ميزان المراجعة',
   estimatedMinutes: 9,
   xpReward: 50,
   openingQuestion: {

@@ -3,7 +3,7 @@ import type { UnitLessonData } from '../unit1-lessons/types';
 export const lesson6: UnitLessonData = {
   id: 'u3-lesson-6',
   lessonNumber: 6,
-  title: 'إعداد القوائم المالية للمشاريع الخدمية',
+  title: 'كيفية الترصيد واستخراج أرصدة الحسابات',
   estimatedMinutes: 8,
   xpReward: 45,
   openingQuestion: {

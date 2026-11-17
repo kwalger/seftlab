@@ -3,7 +3,7 @@ import type { UnitLessonData } from '../unit1-lessons/types';
 export const lesson4: UnitLessonData = {
   id: 'u3-lesson-4',
   lessonNumber: 4,
-  title: 'ترحيل قيود اليومية إلى دفتر الأستاذ والترصيد',
+  title: 'التعرف على دفتر الأستاذ وتقسيماته',
   estimatedMinutes: 8,
   xpReward: 45,
   openingQuestion: {

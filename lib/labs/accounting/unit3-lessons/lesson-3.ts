@@ -3,7 +3,7 @@ import type { UnitLessonData } from '../unit1-lessons/types';
 export const lesson3: UnitLessonData = {
   id: 'u3-lesson-3',
   lessonNumber: 3,
-  title: 'دفتر الأستاذ العام وتصميم حسابات T',
+  title: 'معرفة دفتر اليومية وتقسيماته',
   estimatedMinutes: 7,
   xpReward: 45,
   openingQuestion: {
