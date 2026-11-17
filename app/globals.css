@@ -2,6 +2,9 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  --font-tajawal: 'Tajawal', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Tahoma, sans-serif;
+  --font-inter: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-ibm-arabic: 'Tajawal', system-ui, Tahoma, sans-serif;
   --bg-primary: #FAFBFC;
   --bg-secondary: #F1F4F9;
   --bg-dashboard: #FAFBFC;
@@ -40,6 +43,7 @@
   }
 
   body {
+    font-family: var(--font-tajawal);
     background-color: var(--bg-primary);
     color: var(--text-primary);
     font-size: 16px;

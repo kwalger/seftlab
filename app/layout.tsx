@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import { Tajawal, Inter } from 'next/font/google';
 import { Toaster } from 'sonner';
 import { Navbar } from '@/components/shared/navbar';
 import { Footer } from '@/components/shared/footer';
@@ -11,20 +10,6 @@ import { PageTransition } from '@/components/shared/page-transition';
 import { FirebaseAuthSync } from '@/components/providers/firebase-auth-sync';
 import { getRootJsonLd } from '@/lib/seo/json-ld';
 import './globals.css';
-
-const tajawal = Tajawal({
-  subsets: ['arabic'],
-  weight: ['400', '500', '700'],
-  variable: '--font-tajawal',
-  display: 'swap',
-});
-
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-inter',
-  display: 'swap',
-});
 
 const baseUrl = process.env.APP_URL || 'https://seftlab.com';
 
@@ -208,10 +193,19 @@ export default function RootLayout({
     <html
       lang="ar"
       dir="rtl"
-      className={`${tajawal.variable} ${inter.variable}`}
       suppressHydrationWarning
     >
       <head suppressHydrationWarning>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Tajawal:wght@400;500;700&display=swap"
+          rel="stylesheet"
+        />
         <script
           id="fetch-guard-script"
           dangerouslySetInnerHTML={{ __html: fetchDescriptorGuardScript }}
@@ -223,7 +217,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${tajawal.className} min-h-dvh flex flex-col bg-[#FAFBFC] text-[#0A1630] antialiased transition-colors dark:bg-[#070D1F] dark:text-[#FAFBFC]`}
+        className="min-h-dvh flex flex-col bg-[#FAFBFC] text-[#0A1630] antialiased transition-colors dark:bg-[#070D1F] dark:text-[#FAFBFC]"
         suppressHydrationWarning
       >
         <FirebaseAuthSync />
