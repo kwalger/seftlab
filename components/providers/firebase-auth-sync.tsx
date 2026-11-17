@@ -24,39 +24,38 @@ export function FirebaseAuthSync() {
         let photo = fbUser.photoURL || '';
         let foundMethod = isSuperAdmin ? 'superadmin_hardcoded' : 'default_student';
 
-        try {
-          const timeout = new Promise<null>((_, reject) =>
-            setTimeout(() => reject(new Error('TIMEOUT')), 3500)
-          );
-
-          // 1. Try querying document by fbUser.uid
+        // إذا كان المستخدم سوبر أدمن، يُفعّل فوراً بدون أي تأخير
+        if (isSuperAdmin) {
           const uidDocRef = doc(db, 'users', fbUser.uid);
-          let snap = (await Promise.race([
-            getDoc(uidDocRef),
-            timeout,
-          ])) as any;
+          setDoc(
+            uidDocRef,
+            {
+              name,
+              email: userEmail,
+              role: 'admin',
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          ).catch(() => {});
+        } else {
+          try {
+            const timeout = new Promise<null>((_, reject) =>
+              setTimeout(() => reject(new Error('TIMEOUT')), 1200)
+            );
 
-          let docData: any = null;
+            // 1. استعلام بالـ UID
+            const uidDocRef = doc(db, 'users', fbUser.uid);
+            let snap = (await Promise.race([
+              getDoc(uidDocRef),
+              timeout,
+            ])) as any;
 
-          if (snap && typeof snap.exists === 'function' && snap.exists()) {
-            docData = snap.data();
-            foundMethod = 'doc_by_uid';
-          } else if (userEmail) {
-            // 2. Fallback: try querying document by email as ID
-            try {
-              const emailDocRef = doc(db, 'users', userEmail);
-              const emailSnap = (await Promise.race([
-                getDoc(emailDocRef),
-                timeout,
-              ])) as any;
-              if (emailSnap && typeof emailSnap.exists === 'function' && emailSnap.exists()) {
-                docData = emailSnap.data();
-                foundMethod = 'doc_by_email_id';
-              }
-            } catch {}
+            let docData: any = null;
 
-            // 3. Fallback: query collection where('email', '==', userEmail)
-            if (!docData) {
+            if (snap && typeof snap.exists === 'function' && snap.exists()) {
+              docData = snap.data();
+              foundMethod = 'doc_by_uid';
+            } else if (userEmail) {
               try {
                 const q = query(collection(db, 'users'), where('email', '==', userEmail));
                 const qSnap = (await Promise.race([
@@ -69,46 +68,24 @@ export function FirebaseAuthSync() {
                 }
               } catch {}
             }
-          }
 
-          if (docData) {
-            if (docData.name) name = docData.name;
-            if (docData.photoURL) photo = docData.photoURL;
-            if (!isSuperAdmin && docData.role) {
-              role = resolveUserRole(userEmail, docData.role);
-            }
-          } else {
-            // Create user document if not found
-            await Promise.race([
+            if (docData) {
+              if (docData.name) name = docData.name;
+              if (docData.photoURL) photo = docData.photoURL;
+              if (docData.role) {
+                role = resolveUserRole(userEmail, docData.role);
+              }
+            } else {
               setDoc(uidDocRef, {
                 name,
                 email: userEmail,
                 photoURL: photo,
-                role: isSuperAdmin ? 'admin' : 'student',
+                role: 'student',
                 createdAt: new Date().toISOString(),
-              }),
-              timeout,
-            ]).catch(() => {});
-          }
-
-          // If Super Admin, ensure document in Firestore is marked as 'admin'
-          if (isSuperAdmin) {
-            role = 'admin';
-            setDoc(
-              uidDocRef,
-              {
-                email: userEmail,
-                role: 'admin',
-                updatedAt: new Date().toISOString(),
-              },
-              { merge: true }
-            ).catch(() => {});
-          }
-        } catch (err) {
-          console.warn('[FirebaseAuthSync] Firestore read error or timeout:', err);
-          if (isSuperAdmin) {
-            role = 'admin';
-            foundMethod = 'superadmin_fallback_after_error';
+              }).catch(() => {});
+            }
+          } catch (err) {
+            console.warn('[AuthSync] Note:', err);
           }
         }
 

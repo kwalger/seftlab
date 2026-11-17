@@ -158,7 +158,7 @@ export default function RegisterPage() {
 
       triggerHaptic('success');
       toast.success(
-        role === 'student' ? 'تم إنشاء حساب الطالب في Firebase بنجاح' : 'تم إنشاء الحساب في Firebase بنجاح'
+        role === 'student' ? 'تم إنشاء حساب الطالب بنجاح' : 'تم إنشاء الحساب بنجاح'
       );
       router.push(role === 'student' ? '/student' : '/company');
     } catch (err: unknown) {
@@ -167,13 +167,13 @@ export default function RegisterPage() {
       const code = firebaseError?.code || '';
 
       if (code === 'auth/email-already-in-use') {
-        toast.error('هذا البريد الإلكتروني مسجل بالفعل في Firebase. يرجى التوجه لصفحة تسجيل الدخول.');
+        toast.error('هذا البريد الإلكتروني مسجل بالفعل. يرجى التوجه لصفحة تسجيل الدخول.');
       } else if (code === 'auth/weak-password') {
         toast.error('كلمة المرور ضعيفة. يجب أن تتكون من 6 أحرف على الأقل.');
       } else if (code === 'auth/invalid-email') {
         toast.error('صيغة البريد الإلكتروني غير صالحة.');
       } else {
-        toast.error('تعذر إنشاء الحساب: ' + (firebaseError?.message || 'يرجى المحاولة مجدداً.'));
+        toast.error('تعذر إنشاء الحساب. يرجى التأكد من صحة البيانات والمحاولة مجدداً.');
       }
     } finally {
       setSubmitting(false);
@@ -322,7 +322,7 @@ export default function RegisterPage() {
                   value={organizationOrUniversity}
                   onChange={(e) => setOrganizationOrUniversity(e.target.value)}
                   required
-                  placeholder="الجامعة الأردنية"
+                  placeholder={role === 'company' ? 'مثال: شركة التقنية الحديثة' : 'جامعة الزرقاء'}
                 />
               </div>
 

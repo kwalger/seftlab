@@ -38,7 +38,7 @@ export default function AdminAssignmentsContentPage() {
                         {asg.title}
                       </span>
                       <span className="text-[#526077] dark:text-[#94A3B8]">
-                        — {cls?.university || 'الجامعة الأردنية'}
+                        — {cls?.university || 'جامعة الزرقاء'}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-[#526077] dark:text-[#94A3B8]">

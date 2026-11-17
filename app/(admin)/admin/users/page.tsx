@@ -228,9 +228,9 @@ export default function AdminUsersPage() {
     } catch (error: any) {
       console.error('Error sending reset email:', error);
       if (error?.code === 'auth/user-not-found') {
-        toast.error('هذا البريد غير مسجل في خدمة Firebase Authentication');
+        toast.error('هذا البريد غير مسجل في النظام');
       } else {
-        toast.error('تعذر إرسال الرابط. تأكد من إعدادات البريد في Firebase Console.');
+        toast.error('تعذر إرسال الرابط. يرجى مراجعة إعدادات البريد الإلكتروني.');
       }
     }
   };

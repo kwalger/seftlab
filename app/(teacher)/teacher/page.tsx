@@ -66,7 +66,7 @@ export default function TeacherOverviewPage() {
   const doctorOrg =
     user?.role === 'teacher' && user.organizationOrUniversity
       ? user.organizationOrUniversity
-      : 'الجامعة الأردنية';
+      : 'جامعة الزرقاء';
 
   const totalStudents = classes.reduce(
     (sum, c) => sum + c.studentUsernames.length,

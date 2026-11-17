@@ -152,6 +152,7 @@ export const ACHIEVEMENT_BADGES: AchievementBadge[] = [
 ];
 
 export const UNIVERSITIES: string[] = [
+  'جامعة الزرقاء',
   'الجامعة الأردنية',
   'جامعة العلوم والتكنولوجيا الأردنية',
   'جامعة الأميرة سمية للتكنولوجيا',

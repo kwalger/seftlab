@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard/
+Disallow: /student/
+Disallow: /teacher/
+Disallow: /company/
+Disallow: /admin/
+Disallow: /unauthorized
+
+Sitemap: https://seftlab.com/sitemap.xml

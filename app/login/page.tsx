@@ -44,7 +44,7 @@ function GoogleIcon({ className }: { className?: string }) {
   );
 }
 
-// دالة فحص وتحديث وثيقة المستخدم في Firestore مع دعم السوبر أدمن والاستعلام المرن
+// دالة فحص وتحديث وثيقة المستخدم مع دعم السوبر أدمن فوراً ودون تأخير
 async function syncFirestoreUser(
   uid: string,
   email: string | null,
@@ -52,27 +52,45 @@ async function syncFirestoreUser(
   photoURL: string | null
 ): Promise<{ role: UserRole; name: string; photoURL?: string }> {
   const isSuper = isSuperAdminEmail(email);
-  let role: UserRole = isSuper ? 'admin' : 'student';
+
+  // إذا كان المستخدم هو السوبر أدمن، يُمنح صلاحية الأدمن فوراً في 0ms بدون انتظار استعلامات الشبكة
+  if (isSuper) {
+    const adminName = displayName || (email ? email.split('@')[0] : 'Hasan Alarjan');
+    const userDocRef = doc(db, 'users', uid);
+    // تحديث قاعدة البيانات في الخلفية بدون حجز الواجهة
+    setDoc(
+      userDocRef,
+      {
+        name: adminName,
+        email: email || '',
+        role: 'admin',
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    ).catch(() => {});
+
+    console.log('⚡ [Login] Super Admin instant authorization (0ms):', {
+      uid,
+      email,
+      role: 'admin',
+    });
+    return { role: 'admin', name: adminName, photoURL: photoURL || '' };
+  }
+
+  let role: UserRole = 'student';
   let name = displayName || (email ? email.split('@')[0] : 'مستخدم');
   let finalPhoto = photoURL || '';
 
   try {
     const userDocRef = doc(db, 'users', uid);
-
-    // مهلة زمنية 3.5 ثانية للفايرستور لضمان عدم التعليق في حال بطء الشبكة
+    // مهلة سريعة جداً 1.2 ثانية لتجنب أي تعليق في الواجهة
     const timeout = new Promise<null>((_, reject) =>
-      setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), 3500)
+      setTimeout(() => reject(new Error('TIMEOUT')), 1200)
     );
 
     let docSnap: any = await Promise.race([getDoc(userDocRef), timeout]).catch(() => null);
 
-    // محاولة البحث بالبريد الإلكتروني كمعرّف وثيقة في حال لم يُعثر عليه بالـ UID
-    if ((!docSnap || !docSnap.exists()) && email) {
-      const emailDocRef = doc(db, 'users', email.toLowerCase().trim());
-      docSnap = await Promise.race([getDoc(emailDocRef), timeout]).catch(() => null);
-    }
-
-    // محاولة الاستعلام بحقل البريد الإلكتروني في المجموعة
+    // فحص بالبريد إن لم نجد بالـ UID
     if ((!docSnap || !docSnap.exists()) && email) {
       const q = query(
         collection(db, 'users'),
@@ -90,34 +108,24 @@ async function syncFirestoreUser(
       role = resolveUserRole(email, rawRole);
       if (data.name || data.fullName) name = data.name || data.fullName;
       if (data.photoURL || data.avatarUrl) finalPhoto = data.photoURL || data.avatarUrl;
-
-      // ترقية المستخدم في Firestore إلى أدمن إذا كان مسجلاً كسوبر أدمن
-      if (isSuper && rawRole !== 'admin') {
-        setDoc(userDocRef, { role: 'admin' }, { merge: true }).catch(() => {});
-      }
     } else {
-      // مستخدم جديد يسجل لأول مرة في Firebase
-      await Promise.race([
-        setDoc(userDocRef, {
-          name: name,
-          email: email || '',
-          photoURL: photoURL || '',
-          role: isSuper ? 'admin' : 'student',
-          createdAt: new Date().toISOString(),
-        }),
-        timeout,
-      ]).catch(() => {});
-      role = isSuper ? 'admin' : 'student';
+      // إنشاء المستند في الخلفية
+      setDoc(userDocRef, {
+        name,
+        email: email || '',
+        photoURL: photoURL || '',
+        role: 'student',
+        createdAt: new Date().toISOString(),
+      }).catch(() => {});
     }
   } catch (err) {
-    console.warn('Firestore sync note:', err);
+    console.warn('Sync note:', err);
   }
 
-  console.log('🔑 [Login] Firestore sync result:', {
+  console.log('🔑 [Login] User sync resolved:', {
     uid,
     email,
     resolvedRole: role,
-    isSuperAdmin: isSuper,
   });
 
   return { role, name, photoURL: finalPhoto };
@@ -182,7 +190,7 @@ export default function LoginPage() {
 
     recordAuditAction(
       'تسجيل دخول',
-      `دخول حقيقي عبر Firebase (${effectiveRole}): ${name}`,
+      `تسجيل دخول ناجح (${effectiveRole}): ${name}`,
       name,
       effectiveRole
     );
@@ -190,17 +198,19 @@ export default function LoginPage() {
     triggerHaptic('success');
     toast.success(`مرحباً بك، ${name}`);
 
-    // التوجيه إلى اللوحة المطلوبة
+    // التوجيه المباشر والفوري إلى اللوحة المطلوبة
     if (effectiveRole === 'admin') {
       router.push('/admin');
     } else if (effectiveRole === 'teacher') {
-      router.push('/teacher-dashboard');
+      router.push('/teacher');
+    } else if (effectiveRole === 'company') {
+      router.push('/company');
     } else {
-      router.push('/student-dashboard');
+      router.push('/student');
     }
   };
 
-  // 1. تسجيل الدخول بالبريد وكلمة المرور عبر Firebase Auth الحقيقي
+  // 1. تسجيل الدخول بالبريد وكلمة المرور
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -214,11 +224,11 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // التحقق الفعلي من Firebase Auth
+      // التحقق الفعلي من الحساب
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // فحص الدور في Firestore
+      // فحص الدور
       const { role, name, photoURL } = await syncFirestoreUser(
         user.uid,
         user.email,
@@ -229,8 +239,8 @@ export default function LoginPage() {
       completeSession(user.uid, user.email, name, role, photoURL || user.photoURL);
     } catch (err: unknown) {
       triggerHaptic('error');
-      const firebaseError = err as { code?: string; message?: string };
-      const code = firebaseError?.code || '';
+      const authError = err as { code?: string; message?: string };
+      const code = authError?.code || '';
 
       if (
         code === 'auth/wrong-password' ||
@@ -238,7 +248,7 @@ export default function LoginPage() {
         code === 'auth/user-not-found'
       ) {
         const msg =
-          'البريد الإلكتروني غير مسجل في Firebase أو كلمة المرور غير صحيحة. يمكنك إنشاء حساب جديد عبر الرابط أدناه أو استخدام زر الدخول بواسطة Google.';
+          'البريد الإلكتروني غير مسجل أو كلمة المرور غير صحيحة. يمكنك إنشاء حساب جديد أو استخدام زر الدخول بواسطة Google.';
         setErrorMessage(msg);
         toast.error(msg);
       } else if (code === 'auth/invalid-email') {
@@ -250,11 +260,11 @@ export default function LoginPage() {
         setErrorMessage(msg);
         toast.error(msg);
       } else if (code === 'auth/network-request-failed') {
-        const msg = 'تعذر الاتصال بخوادم Firebase. يرجى التحقق من اتصال الإنترنت.';
+        const msg = 'تعذر الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.';
         setErrorMessage(msg);
         toast.error(msg);
       } else {
-        const msg = 'حدث خطأ أثناء تسجيل الدخول: ' + (firebaseError?.message || 'يرجى المحاولة مجدداً.');
+        const msg = 'حدث خطأ أثناء تسجيل الدخول. يرجى التأكد من البيانات والمحاولة مجدداً.';
         setErrorMessage(msg);
         toast.error(msg);
       }
@@ -263,17 +273,17 @@ export default function LoginPage() {
     }
   };
 
-  // 2. تسجيل الدخول بواسطة Google الحقيقي عبر signInWithPopup
+  // 2. تسجيل الدخول بواسطة Google
   const handleGoogleSignIn = async () => {
     setErrorMessage(null);
     setGoogleLoading(true);
 
     try {
-      // فتح نافذة Google الرسمية وتسجيل الدخول الفعلي
+      // فتح نافذة Google الرسمية وتسجيل الدخول
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
 
-      // فحص وثيقة المستخدم في Firestore: إذا كان جديداً ينشئ له حساب طالب، وإذا مسجل يقرأ الدور
+      // فحص وثيقة المستخدم
       const { role, name, photoURL } = await syncFirestoreUser(
         user.uid,
         user.email,
@@ -284,8 +294,8 @@ export default function LoginPage() {
       completeSession(user.uid, user.email, name, role, photoURL || user.photoURL);
     } catch (err: unknown) {
       triggerHaptic('error');
-      const firebaseError = err as { code?: string; message?: string };
-      const code = firebaseError?.code || '';
+      const authError = err as { code?: string; message?: string };
+      const code = authError?.code || '';
 
       if (code === 'auth/popup-closed-by-user') {
         const msg = 'تم إغلاق نافذة تسجيل الدخول بواسطة Google قبل إتمامها.';
@@ -300,19 +310,15 @@ export default function LoginPage() {
         setErrorMessage(msg);
         toast.error(msg);
       } else if (code === 'auth/operation-not-allowed') {
-        const msg =
-          'يرجى تفعيل موفر Google في لوحة Firebase Console: (Authentication -> Sign-in method -> Google -> Enable).';
+        const msg = 'خدمة الدخول بواسطة Google غير متاحة حالياً. يرجى استخدام البريد وكلمة المرور.';
         setErrorMessage(msg);
         toast.error(msg);
       } else if (code === 'auth/unauthorized-domain') {
-        const msg =
-          'النطاق الحالي غير مضاف في النطاقات المصرح بها في Firebase Console: (Authentication -> Settings -> Authorized Domains -> إضافة localhost).';
+        const msg = 'تعذر تسجيل الدخول من هذا النطاق. يرجى المحاولة لاحقاً.';
         setErrorMessage(msg);
         toast.error(msg);
       } else {
-        const msg =
-          'تعذر تسجيل الدخول بواسطة Google: ' +
-          (firebaseError?.message || 'يرجى التأكد من تفعيل Google في لوحة Firebase.');
+        const msg = 'تعذر إتمام الدخول بواسطة Google. يرجى المحاولة مجدداً.';
         setErrorMessage(msg);
         toast.error(msg);
       }
@@ -402,7 +408,7 @@ export default function LoginPage() {
             className="w-full gap-2 font-bold shadow-xs min-h-[48px] text-base"
           >
             <LogIn className="h-4 w-4 stroke-[1.5]" />
-            <span>{loading ? 'جارٍ التحقق من Firebase...' : 'دخول إلى اللوحة'}</span>
+            <span>{loading ? 'جارٍ تسجيل الدخول...' : 'دخول إلى اللوحة'}</span>
           </Button>
 
           {/* فاصل أو */}
@@ -433,7 +439,7 @@ export default function LoginPage() {
             href="/register"
             className="font-bold text-[#2F6BFF] hover:underline"
           >
-            أنشئ حساباً جديداً في Firebase
+            أنشئ حساباً جديداً
           </Link>
         </p>
 

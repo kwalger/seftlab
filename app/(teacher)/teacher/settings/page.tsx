@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 export default function TeacherSettingsPage() {
   const [name, setName] = useState('د. أحمد خليل العساف');
   const [email, setEmail] = useState('a.khalil@ju.edu.jo');
-  const [university, setUniversity] = useState('الجامعة الأردنية');
+  const [university, setUniversity] = useState('جامعة الزرقاء');
   const [department, setDepartment] = useState(
     'كلية الأعمال — قسم المحاسبة ونظم المعلومات'
   );
