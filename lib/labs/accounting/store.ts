@@ -48,6 +48,9 @@ interface AccountingLabState {
   unit2CompletedLessons: number[];
   unit2CurrentLesson: number;
   unit2CompletedQuizzes: string[];
+  unit3CompletedLessons: number[];
+  unit3CurrentLesson: number;
+  unit3CompletedQuizzes: string[];
 
   recordExerciseAttempt: (params: {
     unitNumber: number;
@@ -75,6 +78,8 @@ interface AccountingLabState {
   completeUnit1LegoTask: (taskId: string) => void;
   completeUnit2Lesson: (lessonNumber: number) => void;
   completeUnit2QuickQuiz: (quizId: string) => void;
+  completeUnit3Lesson: (lessonNumber: number) => void;
+  completeUnit3QuickQuiz: (quizId: string) => void;
   resetLabProgress: () => void;
 }
 
@@ -116,6 +121,9 @@ export const useAccountingLabStore = create<AccountingLabState>()(
       unit2CompletedLessons: [],
       unit2CurrentLesson: 1,
       unit2CompletedQuizzes: [],
+      unit3CompletedLessons: [],
+      unit3CurrentLesson: 1,
+      unit3CompletedQuizzes: [],
 
       recordExerciseAttempt: ({
         unitNumber,
@@ -402,6 +410,42 @@ export const useAccountingLabStore = create<AccountingLabState>()(
         set((state) => ({
           unit2CompletedQuizzes: Array.from(
             new Set([...(state.unit2CompletedQuizzes || []), quizId])
+          ),
+        }));
+      },
+
+      completeUnit3Lesson: (lessonNumber) => {
+        set((state) => {
+          const nextCompleted = Array.from(
+            new Set([...(state.unit3CompletedLessons || []), lessonNumber])
+          ).sort((a, b) => a - b);
+          const isGraded = lessonNumber >= 1;
+          const exId = `u3-ex-${lessonNumber}`;
+          const nextEx = isGraded
+            ? Array.from(new Set([...state.completedExerciseIds, exId]))
+            : state.completedExerciseIds;
+          const nextScores = isGraded
+            ? { ...state.exerciseScores, [exId]: 100 }
+            : state.exerciseScores;
+          const nextLesson = Math.min(
+            7,
+            Math.max(1, state.unit3CurrentLesson || 1, lessonNumber + 1)
+          );
+          return {
+            unit3CompletedLessons: nextCompleted,
+            unit3CurrentLesson: nextLesson,
+            completedExerciseIds: nextEx,
+            exerciseScores: nextScores,
+            lastActiveUnit: 3,
+            lastActiveExerciseId: `u3-ex-${nextLesson}`,
+          };
+        });
+      },
+
+      completeUnit3QuickQuiz: (quizId) => {
+        set((state) => ({
+          unit3CompletedQuizzes: Array.from(
+            new Set([...(state.unit3CompletedQuizzes || []), quizId])
           ),
         }));
       },

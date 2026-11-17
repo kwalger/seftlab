@@ -22,6 +22,7 @@ import {
 import { UNIT1_BYPASS_QUESTIONS } from '@/lib/labs/accounting/unit1-data';
 import { UNIT1_LESSONS_META } from '@/lib/labs/accounting/unit1-lessons';
 import { UNIT2_LESSONS_META } from '@/lib/labs/accounting/unit2-data';
+import { UNIT3_LESSONS_META } from '@/lib/labs/accounting/unit3-lessons';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -38,13 +39,15 @@ export function CurriculumMap({ onOpenUnit }: CurriculumMapProps) {
     unit1CurrentLesson,
     unit2CompletedLessons = [],
     unit2CurrentLesson = 1,
+    unit3CompletedLessons = [],
+    unit3CurrentLesson = 1,
     passBypassExamForUnit,
   } = useAccountingLabStore();
 
   const [bypassUnitTarget, setBypassUnitTarget] = useState<number | null>(null);
   const [bypassAnswers, setBypassAnswers] = useState<Record<string, string>>({});
   const [bypassFeedback, setBypassFeedback] = useState<string | null>(null);
-  const [selectedUnitRoadmap, setSelectedUnitRoadmap] = useState<1 | 2>(1);
+  const [selectedUnitRoadmap, setSelectedUnitRoadmap] = useState<1 | 2 | 3>(1);
 
   const handleSubmitBypass = () => {
     if (!bypassUnitTarget) return;
@@ -318,6 +321,18 @@ export function CurriculumMap({ onOpenUnit }: CurriculumMapProps) {
             >
               الوحدة الثانية: تحليل العمليات المالية (7 مساقات)
             </button>
+            <button
+              type="button"
+              onClick={() => setSelectedUnitRoadmap(3)}
+              className={cn(
+                'rounded-2xl px-4 py-2 text-xs font-bold transition-all sm:text-sm',
+                selectedUnitRoadmap === 3
+                  ? 'bg-[#2563EB] text-white shadow-sm'
+                  : 'bg-[#F1F5F9] text-[#64748B] hover:text-[#0A1630] dark:bg-[#070D1F] dark:text-[#94A3B8] dark:hover:text-white'
+              )}
+            >
+              الوحدة الثالثة: الدورة المحاسبية (7 مساقات)
+            </button>
           </div>
 
           <Button
@@ -438,7 +453,7 @@ export function CurriculumMap({ onOpenUnit }: CurriculumMapProps) {
               })}
             </div>
           </div>
-        ) : (
+        ) : selectedUnitRoadmap === 2 ? (
           <div>
             <div className="mb-4">
               <h3 className="text-base font-bold text-[#0A1630] dark:text-white">
@@ -488,6 +503,116 @@ export function CurriculumMap({ onOpenUnit }: CurriculumMapProps) {
                     type="button"
                     disabled={!isUnlocked}
                     onClick={() => onOpenUnit(2)}
+                    className={cn(
+                      'group relative flex w-full items-start gap-3.5 rounded-[22px] border p-4 text-right transition-all',
+                      isExDone
+                        ? 'border-[#10B981]/40 bg-[#10B981]/[0.03] hover:border-[#10B981]'
+                        : isUnlocked
+                        ? 'border-[#E2E8F0] bg-[#F8FAFC] hover:-translate-y-0.5 hover:border-[#2563EB]/50 hover:bg-white dark:border-[#1E325C] dark:bg-[#070D1F] dark:hover:bg-[#0A1630]'
+                        : 'cursor-not-allowed border-[#E2E8F0]/70 bg-[#F8FAFC]/70 opacity-75 dark:border-[#1E325C]/60 dark:bg-[#070D1F]/60'
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-tabular text-xs font-bold',
+                        isExDone
+                          ? 'bg-[#10B981] text-white'
+                          : isUnlocked
+                          ? 'border border-[#E2E8F0] bg-white text-[#0A1630] dark:border-[#1E325C] dark:bg-[#0A1630] dark:text-white'
+                          : 'bg-[#E2E8F0] text-[#64748B] dark:bg-[#1E325C] dark:text-[#94A3B8]'
+                      )}
+                    >
+                      {isExDone ? (
+                        <CheckCircle2 className="h-4 w-4" />
+                      ) : isUnlocked ? (
+                        lesson.lessonNumber
+                      ) : (
+                        <Lock className="h-3.5 w-3.5" />
+                      )}
+                    </span>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-bold text-[#0A1630] dark:text-white">
+                          {lesson.title}
+                        </p>
+                        <span
+                          className={cn(
+                            'shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold',
+                            isExDone
+                              ? 'bg-[#10B981]/15 text-[#047857] dark:text-[#34D399]'
+                              : isUnlocked
+                              ? 'bg-[#2563EB]/10 text-[#2563EB]'
+                              : 'bg-[#E2E8F0] text-[#64748B] dark:bg-[#1E325C] dark:text-[#94A3B8]'
+                          )}
+                        >
+                          {statusText}
+                        </span>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[#64748B] dark:text-[#94A3B8]">
+                        {lesson.shortGoal}
+                      </p>
+                      <div className="mt-2.5 flex items-center gap-2">
+                        <span className="inline-flex items-center rounded-full bg-white px-2.5 py-0.5 font-tabular text-[11px] font-medium text-[#526077] dark:bg-[#0A1630] dark:text-[#94A3B8]">
+                          {lesson.estimatedMinutes} دقائق
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="mb-4">
+              <h3 className="text-base font-bold text-[#0A1630] dark:text-white">
+                خريطة مساقات الوحدة الثالثة: الدورة المحاسبية (7 مساقات)
+              </h3>
+              <p className="mt-0.5 text-xs text-[#64748B] dark:text-[#94A3B8]">
+                مبنية وفق أهداف الفصل الثالث من الكتاب المعتمد: القيد المزدوج، دفتر اليومية والقيود البسيطة والمركبة، دفتر الأستاذ (حسابات T)، الترحيل والترصيد، ميزان المراجعة، القوائم المالية، وحل تمارين الكتاب الشاملة (محلات حازم).
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {UNIT3_LESSONS_META.map((lesson) => {
+                const u3Unlocked = isUnitUnlocked({
+                  unitNumber: 3,
+                  completedExerciseIds,
+                  bypassedUnits,
+                });
+                const isExDone = (unit3CompletedLessons || []).includes(lesson.lessonNumber);
+                const highestDone =
+                  (unit3CompletedLessons || []).filter((n) => n >= 1).length > 0
+                    ? Math.max(...(unit3CompletedLessons || []).filter((n) => n >= 1))
+                    : 0;
+                const isUnlocked =
+                  u3Unlocked && (lesson.lessonNumber === 0 || lesson.lessonNumber <= highestDone + 1);
+                const isCurrent =
+                  u3Unlocked &&
+                  !isExDone &&
+                  (lesson.lessonNumber === 0
+                    ? !(unit3CompletedLessons || []).includes(0)
+                    : lesson.lessonNumber ===
+                      Math.min(
+                        UNIT3_LESSONS_META.filter((m) => m.lessonNumber >= 1).length,
+                        Math.max(1, unit3CurrentLesson || 1)
+                      ));
+
+                const statusText = isExDone
+                  ? 'مكتمل'
+                  : isCurrent
+                  ? 'الحالي'
+                  : isUnlocked
+                  ? 'متاح'
+                  : 'مقفل';
+
+                return (
+                  <button
+                    key={lesson.id}
+                    type="button"
+                    disabled={!isUnlocked}
+                    onClick={() => onOpenUnit(3)}
                     className={cn(
                       'group relative flex w-full items-start gap-3.5 rounded-[22px] border p-4 text-right transition-all',
                       isExDone

@@ -29,6 +29,7 @@ import {
 } from '@/lib/labs/accounting/store';
 import { UNIT1_EXAM_QUESTIONS } from '@/lib/labs/accounting/unit1-data';
 import { UNIT2_EXAM_QUESTIONS } from '@/lib/labs/accounting/unit2-data';
+import { UNIT3_EXAM_QUESTIONS } from '@/lib/labs/accounting/unit3-data';
 import { calculateSkillLevelFromXp } from '@/lib/labs/skill-calculator';
 import { triggerHaptic } from '@/lib/haptics';
 import { useAppStore } from '@/store/use-app-store';
@@ -65,6 +66,17 @@ const Unit2Intro = dynamic(
   }
 );
 
+const Unit3Intro = dynamic(
+  () => import('@/components/labs/accounting/units/unit3-intro'),
+  {
+    loading: () => (
+      <div className="rounded-[28px] border border-[#E3E8F0] bg-white p-8 text-center text-sm text-[#526077] dark:border-[#1E325C] dark:bg-[#0A1630] dark:text-[#94A3B8]">
+        جاري تحميل مساقات الوحدة الثالثة (الدورة المحاسبية)...
+      </div>
+    ),
+  }
+);
+
 type LabViewMode = 'map' | 'unit' | 'sandbox' | 'quiz' | 'errors';
 
 export function AccountingLabClient() {
@@ -92,6 +104,7 @@ export function AccountingLabClient() {
     () => [
       ...UNIT1_EXAM_QUESTIONS.map((q) => ({ ...q, unitLabel: 'الوحدة 1' })),
       ...UNIT2_EXAM_QUESTIONS.map((q) => ({ ...q, unitLabel: 'الوحدة 2' })),
+      ...UNIT3_EXAM_QUESTIONS.map((q) => ({ ...q, unitLabel: 'الوحدة 3' })),
     ],
     []
   );
@@ -340,6 +353,13 @@ export function AccountingLabClient() {
           initialExerciseId={targetExerciseId}
           onBackToMap={() => setViewMode('map')}
           onUnlockUnit3={() => handleOpenUnit(3)}
+        />
+      )}
+
+      {viewMode === 'unit' && activeUnitNum === 3 && (
+        <Unit3Intro
+          initialExerciseId={targetExerciseId}
+          onBackToMap={() => setViewMode('map')}
         />
       )}
 
