@@ -1,17 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:xhtml="http://www.w3.org/1999/xhtml"
-        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
-  <!-- الصفحة الرئيسية -->
+<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://seftlab.com/</loc>
     <lastmod>2026-11-17</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
-    <xhtml:link rel="alternate" hreflang="ar" href="https://seftlab.com/"/>
   </url>
-
-  <!-- بوابات المنصة والمختبرات التطبيقية -->
   <url>
     <loc>https://seftlab.com/labs</loc>
     <lastmod>2026-11-17</lastmod>
@@ -42,8 +37,6 @@
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
-
-  <!-- لوحة المتصدرين وتوظيف الشركات -->
   <url>
     <loc>https://seftlab.com/leaderboard</loc>
     <lastmod>2026-11-17</lastmod>
@@ -62,8 +55,6 @@
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
-
-  <!-- صفحات الطلاب المعتمدة والموثقة -->
   <url>
     <loc>https://seftlab.com/students/yazan-nabulsi</loc>
     <lastmod>2026-11-17</lastmod>
@@ -118,8 +109,6 @@
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
-
-  <!-- الصفحات التعريفية والسياسات والشروط -->
   <url>
     <loc>https://seftlab.com/about</loc>
     <lastmod>2026-11-17</lastmod>
