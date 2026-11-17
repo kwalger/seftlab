@@ -2,8 +2,6 @@
 
 import React, { useState, use } from 'react';
 import Link from 'next/link';
-
-export const runtime = 'edge';
 import {
   ArrowRight,
   CheckCircle2,
