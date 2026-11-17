@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyServerCredentials } from '@/lib/auth-server';
+import { createSignedSessionToken } from '@/lib/session';
 
 export const runtime = 'edge';
 
@@ -47,17 +48,17 @@ export async function POST(request: NextRequest) {
       redirectTo: result.redirectTo,
     });
 
-    // HttpOnly + Secure + SameSite session token
-    const sessionPayload = Buffer.from(
-      JSON.stringify({
-        id: result.session.id,
-        role: result.session.role,
-        username: result.session.username,
-        issuedAt: Date.now(),
-      })
-    ).toString('base64url');
+    // Tamper-proof HMAC-SHA256 session token with full UTF-8 Arabic support
+    const sessionPayload = {
+      id: result.session.id,
+      role: result.session.role,
+      username: result.session.username,
+      name: result.session.name,
+      issuedAt: Date.now(),
+    };
+    const sessionToken = await createSignedSessionToken(sessionPayload);
 
-    response.cookies.set('seftlab_session', sessionPayload, {
+    response.cookies.set('seftlab_session', sessionToken, {
       httpOnly: true,
       secure: isProd,
       sameSite: 'lax',
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
       maxAge: 60 * 60 * 24 * 7,
     });
 
-    // Role cookie used by middleware and client role sync
+    // Client-readable role cookie for UI synchronization
     response.cookies.set('seftlab_role', result.session.role, {
       httpOnly: false,
       secure: isProd,

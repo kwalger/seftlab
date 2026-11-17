@@ -1,11 +1,7 @@
 import React from 'react';
 import TeacherAssignmentDetailClient from './assignment-detail-client';
 
-export function generateStaticParams() {
-  return [];
-}
-
-export const dynamicParams = true;
+export const runtime = 'edge';
 
 export default async function TeacherAssignmentDetailPage({
   params,

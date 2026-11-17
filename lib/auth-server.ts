@@ -53,7 +53,10 @@ const MOCK_AUTH_USERS: ServerAuthRecord[] = [
   },
 ];
 
-// Rate limiter state (in-memory per server instance)
+// Rate limiter state (in-memory per edge isolate / server instance).
+// Note: On Cloudflare Pages Edge Runtime, isolates are distributed and ephemeral.
+// For enterprise-grade protection across all global edge points, configure Cloudflare
+// WAF Rate Limiting rules in the Cloudflare Dashboard (Security > WAF > Rate Limiting).
 interface RateLimitBucket {
   failedCount: number;
   firstFailedAt: number;

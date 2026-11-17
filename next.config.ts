@@ -17,6 +17,7 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
@@ -38,7 +39,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  output: 'standalone',
   async redirects() {
     return [
       {
@@ -51,17 +51,19 @@ const nextConfig: NextConfig = {
         destination: '/teacher',
         permanent: false,
       },
+      {
+        source: '/company/dashboard',
+        destination: '/company',
+        permanent: false,
+      },
+      {
+        source: '/student/ai-tutor',
+        destination: '/student',
+        permanent: false,
+      },
     ];
   },
   transpilePackages: ['motion'],
-  webpack: (config, { dev }) => {
-    if (dev && process.env.DISABLE_HMR === 'true') {
-      config.watchOptions = {
-        ignored: /.*/,
-      };
-    }
-    return config;
-  },
 };
 
 export default withSerwist(nextConfig);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UserRole } from '@/types';
+import { verifySignedSessionToken } from '@/lib/session';
 
 const VALID_ROLES: UserRole[] = ['student', 'teacher', 'company', 'admin'];
 
@@ -19,7 +20,7 @@ function getRequiredRoleForPath(pathname: string): UserRole | null {
   return null;
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
   const requiredRole = getRequiredRoleForPath(pathname);
 
@@ -50,12 +51,27 @@ export function middleware(request: NextRequest) {
     request.cookies.get('tadreebak_role')?.value
   ) as UserRole | undefined;
 
-  // Admin routes strictly require roleCookie === 'admin'
-  if (requiredRole === 'admin' && roleCookie !== 'admin') {
-    const unauthorizedUrl = new URL('/unauthorized', request.url);
-    unauthorizedUrl.searchParams.set('required', 'admin');
-    unauthorizedUrl.searchParams.set('from', pathname);
-    return NextResponse.redirect(unauthorizedUrl);
+  const sessionCookie = request.cookies.get('seftlab_session')?.value;
+
+  // Cryptographic session verification for Admin routes (prevents cookie tampering/forgery)
+  if (requiredRole === 'admin') {
+    if (!sessionCookie) {
+      const unauthorizedUrl = new URL('/unauthorized', request.url);
+      unauthorizedUrl.searchParams.set('required', 'admin');
+      unauthorizedUrl.searchParams.set('from', pathname);
+      return NextResponse.redirect(unauthorizedUrl);
+    }
+
+    const verifiedSession = await verifySignedSessionToken<{
+      role?: string;
+    }>(sessionCookie);
+
+    if (!verifiedSession || verifiedSession.role !== 'admin') {
+      const unauthorizedUrl = new URL('/unauthorized', request.url);
+      unauthorizedUrl.searchParams.set('required', 'admin');
+      unauthorizedUrl.searchParams.set('from', pathname);
+      return NextResponse.redirect(unauthorizedUrl);
+    }
   }
 
   // Cross-role protection: if user has a role cookie and it doesn't match the target dashboard
