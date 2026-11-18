@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { Drawer } from 'vaul';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -13,6 +14,9 @@ interface BottomSheetProps {
   children: React.ReactNode;
   className?: string;
   hideCloseButton?: boolean;
+  modal?: boolean;
+  dismissible?: boolean;
+  scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export function BottomSheet({
@@ -23,9 +27,79 @@ export function BottomSheet({
   children,
   className,
   hideCloseButton = false,
+  modal = true,
+  dismissible = true,
+  scrollContainerRef,
 }: BottomSheetProps) {
+  // When modal=false (used during the interactive guided tour), render a clean
+  // non-modal portal sheet so Radix/Vaul does not lock body pointer-events or hide sibling tour UI.
+  if (!modal) {
+    if (!open || typeof document === 'undefined') return null;
+    return createPortal(
+      <>
+        <div
+          aria-hidden="true"
+          onClick={() => {
+            if (dismissible) onOpenChange(false);
+          }}
+          className="fixed inset-0 z-[80] bg-[#070D1F]/60 backdrop-blur-xs"
+        />
+        <div
+          dir="rtl"
+          role="region"
+          aria-label={title}
+          className={cn(
+            'fixed inset-x-0 bottom-0 z-[81] mx-auto flex max-h-[88dvh] w-full max-w-lg flex-col rounded-t-[28px] border-t border-[#E3E8F0] bg-white text-right outline-none dark:border-[#1E325C] dark:bg-[#0A1630]',
+            className
+          )}
+        >
+          <div className="flex shrink-0 justify-center pt-3 pb-1">
+            <div className="h-1.5 w-11 rounded-full bg-[#E3E8F0] dark:bg-[#1E325C]" />
+          </div>
+
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#E3E8F0] px-5 py-3 dark:border-[#1E325C]">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-base font-semibold text-[#0A1630] dark:text-[#FAFBFC]">
+                {title}
+              </p>
+              {description && (
+                <p className="mt-0.5 text-xs text-[#526077] dark:text-[#94A3B8]">
+                  {description}
+                </p>
+              )}
+            </div>
+            {!hideCloseButton && (
+              <button
+                type="button"
+                aria-label="إغلاق"
+                onClick={() => onOpenChange(false)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-[#526077] hover:bg-[#F1F4F9] hover:text-[#0A1630] dark:text-[#94A3B8] dark:hover:bg-[#070D1F] dark:hover:text-[#FAFBFC]"
+              >
+                <X className="h-4 w-4 stroke-[1.5]" />
+              </button>
+            )}
+          </div>
+
+          <div
+            ref={scrollContainerRef}
+            className="min-h-0 flex-1 overflow-y-auto px-5 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+          >
+            {children}
+          </div>
+        </div>
+      </>,
+      document.body
+    );
+  }
+
   return (
-    <Drawer.Root open={open} onOpenChange={onOpenChange} shouldScaleBackground={false}>
+    <Drawer.Root
+      open={open}
+      onOpenChange={onOpenChange}
+      shouldScaleBackground={false}
+      modal={modal}
+      dismissible={dismissible}
+    >
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-[80] bg-[#070D1F]/60 backdrop-blur-xs" />
         <Drawer.Content
@@ -62,7 +136,10 @@ export function BottomSheet({
             )}
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+          <div
+            ref={scrollContainerRef}
+            className="min-h-0 flex-1 overflow-y-auto px-5 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+          >
             {children}
           </div>
         </Drawer.Content>

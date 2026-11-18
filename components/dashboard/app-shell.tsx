@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Compass,
   ExternalLink,
   LayoutGrid,
   LogOut,
@@ -30,6 +31,10 @@ import { PWAInstallButton } from '@/components/pwa/pwa-install-button';
 import { TadreebakLogo } from '@/components/shared/tadreebak-logo';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { ConfirmSheet } from '@/components/ui/confirm-sheet';
+import {
+  SiteGuidedTour,
+  triggerSiteGuidedTour,
+} from '@/components/shared/site-guided-tour';
 import { useKeyboardOffset } from '@/hooks/use-keyboard-offset';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
@@ -117,13 +122,36 @@ export function DashboardAppShell({
   const [notifPath, setNotifPath] = useState<string | null>(null);
   const [accountPath, setAccountPath] = useState<string | null>(null);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [menuTourActive, setMenuTourActive] = useState(false);
+  const mobileDrawerScrollRef = useRef<HTMLDivElement | null>(null);
 
   const mobileSheetOpen = mobileSheetPath === pathname;
   const notifOpen = notifPath === pathname;
   const accountOpen = accountPath === pathname;
 
-  const setMobileSheetOpen = (open: boolean) =>
-    setMobileSheetPath(open ? pathname : null);
+  const setMobileSheetOpen = useCallback(
+    (open: boolean) => setMobileSheetPath(open ? pathname : null),
+    [pathname]
+  );
+
+  const expandTourMenuGroups = useCallback(() => {
+    setOpenGroups((prev) => {
+      if (prev['القاعات'] && prev['التدريب العملي والمختبر']) return prev;
+      return {
+        ...prev,
+        القاعات: true,
+        'التدريب العملي والمختبر': true,
+      };
+    });
+    setOpenSubGroups((prev) => {
+      if (prev['المختبر'] && prev['التدريب العملي']) return prev;
+      return {
+        ...prev,
+        المختبر: true,
+        'التدريب العملي': true,
+      };
+    });
+  }, []);
 
   const setNotifOpen = (val: boolean | ((prev: boolean) => boolean)) => {
     setNotifPath((prev) => {
@@ -232,7 +260,11 @@ export function DashboardAppShell({
     let previousSection: string | undefined = undefined;
 
     return (
-      <nav aria-label="قائمة لوحة التحكم" className="space-y-1">
+      <nav
+        data-tour-menu={isMobile ? 'mobile' : 'desktop'}
+        aria-label="قائمة لوحة التحكم"
+        className="space-y-1"
+      >
         {navItems.map((item) => {
           const Icon = item.icon;
           const hasChildren = Boolean(item.children && item.children.length > 0);
@@ -265,7 +297,11 @@ export function DashboardAppShell({
               )}
 
               {hasChildren ? (
-                <div key={item.label} className="space-y-1">
+                <div
+                  key={item.label}
+                  data-tour-group={item.label}
+                  className="space-y-1"
+                >
                   <button
                     type="button"
                     onClick={() => {
@@ -328,7 +364,11 @@ export function DashboardAppShell({
                         if (hasSubChildren) {
                           const isSubGroupOpen = openSubGroups[sub.label] ?? true;
                           return (
-                            <div key={sub.label || subIdx} className="space-y-1 pt-1">
+                            <div
+                              key={sub.label || subIdx}
+                              data-tour-subgroup={sub.label}
+                              className="space-y-1 pt-1"
+                            >
                               <button
                                 type="button"
                                 onClick={() => toggleSubGroup(sub.label)}
@@ -381,6 +421,7 @@ export function DashboardAppShell({
                                       <Link
                                         key={child.href}
                                         href={child.href}
+                                        data-tour-item={child.href}
                                         onClick={() => setMobileSheetOpen(false)}
                                         className={cn(
                                           'flex min-h-[38px] items-center rounded-[12px] px-3 py-1.5 text-xs transition-all',
@@ -409,6 +450,7 @@ export function DashboardAppShell({
                           <Link
                             key={flatChild.href}
                             href={flatChild.href}
+                            data-tour-item={flatChild.href}
                             onClick={() => setMobileSheetOpen(false)}
                             className={cn(
                               'flex min-h-[42px] items-center rounded-[16px] px-3.5 py-2 text-xs transition-all',
@@ -432,6 +474,7 @@ export function DashboardAppShell({
                 <Link
                   key={item.href || item.label}
                   href={item.href || '#'}
+                  data-tour-item={item.href}
                   onClick={() => setMobileSheetOpen(false)}
                   title={item.label}
                   className={cn(
@@ -800,6 +843,7 @@ export function DashboardAppShell({
 
             <button
               type="button"
+              data-tour-menu="mobile-trigger"
               onClick={() => setMobileSheetOpen(true)}
               aria-label="فتح قائمة التنقل الكاملة"
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#E3E8F0] text-[#0A1630] active:scale-[0.97] lg:hidden dark:border-[#1E325C] dark:text-[#FAFBFC]"
@@ -824,6 +868,19 @@ export function DashboardAppShell({
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
+            {mode === 'student' && (
+              <button
+                type="button"
+                onClick={triggerSiteGuidedTour}
+                aria-label="شرح القوائم"
+                title="شرح قوائم اللوحة"
+                className="inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-[#2F6BFF]/30 bg-[#2F6BFF]/[0.06] px-2.5 text-xs font-bold text-[#2F6BFF] transition-colors hover:bg-[#2F6BFF]/12 sm:px-3.5 dark:bg-[#2F6BFF]/15 dark:text-[#93C5FD]"
+              >
+                <Compass className="h-3.5 w-3.5 stroke-[2]" />
+                <span className="hidden sm:inline">شرح القوائم</span>
+              </button>
+            )}
+
             <Link
               href="/"
               className="hidden items-center gap-1.5 whitespace-nowrap rounded-full border border-[#E3E8F0] bg-[#F8FAFC] px-3.5 py-2 text-xs font-medium text-[#0A1630] transition-colors hover:border-[#2F6BFF] sm:inline-flex dark:border-[#1E325C] dark:bg-[#070D1F] dark:text-[#FAFBFC]"
@@ -994,9 +1051,16 @@ export function DashboardAppShell({
       {/* Vaul Bottom Sheet for Full Dashboard Drawer on < lg */}
       <BottomSheet
         open={mobileSheetOpen}
-        onOpenChange={setMobileSheetOpen}
+        onOpenChange={(open) => {
+          if (!open && menuTourActive) return;
+          setMobileSheetOpen(open);
+        }}
         title={identityName}
         description={identitySubtitle}
+        modal={!menuTourActive}
+        dismissible={!menuTourActive}
+        hideCloseButton={menuTourActive}
+        scrollContainerRef={mobileDrawerScrollRef}
       >
         <div className="space-y-4">
           <div className="flex items-center justify-center border-b border-[#E3E8F0] pb-3 dark:border-[#1E325C]">
@@ -1097,6 +1161,17 @@ export function DashboardAppShell({
         onOpenChange={setCommandOpen}
         mode={mode}
       />
+
+      {/* Interactive First-Login Menu Spotlight Tour (Desktop Sidebar & Android Mobile Drawer) */}
+      {mode === 'student' && (
+        <SiteGuidedTour
+          onTourOpenChange={setMenuTourActive}
+          setMobileDrawerOpen={setMobileSheetOpen}
+          setSidebarCollapsed={setCollapsed}
+          expandMenuGroups={expandTourMenuGroups}
+          mobileDrawerScrollRef={mobileDrawerScrollRef}
+        />
+      )}
     </div>
   );
 }
