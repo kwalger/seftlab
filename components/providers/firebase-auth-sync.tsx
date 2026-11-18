@@ -14,6 +14,14 @@ export function FirebaseAuthSync() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
+        if (
+          typeof window !== 'undefined' &&
+          (window.location.pathname === '/login' ||
+            window.location.pathname === '/register')
+        ) {
+          return;
+        }
+
         const userEmail = fbUser.email?.toLowerCase().trim() || '';
         const isSuperAdmin = isSuperAdminEmail(userEmail);
 

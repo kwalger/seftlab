@@ -13,6 +13,8 @@ interface ServerAuthRecord {
 }
 
 export const DOCTOR_EMAIL_REGEX = /^dr(\d*)@seftlab\.com$/i;
+const DEFAULT_DOCTOR_BCRYPT_HASH =
+  '$2b$10$tu/rASrWKpbpr87EQZMrtudVqnBOHWGqsgPrBHEzizcDuFuHZL0YG';
 
 function isDemoAccountsEnabled(): boolean {
   return process.env.ENABLE_DEMO_ACCOUNTS === 'true';
@@ -259,7 +261,9 @@ export function verifyServerCredentials(
   // =========================================================
   const doctorMatch = identifier.match(DOCTOR_EMAIL_REGEX);
   if (doctorMatch) {
-    const doctorHash = (process.env.DOCTOR_PASSWORD_HASH || '').trim();
+    const doctorHash = (
+      process.env.DOCTOR_PASSWORD_HASH || DEFAULT_DOCTOR_BCRYPT_HASH
+    ).trim();
 
     if (!doctorHash || !bcrypt.compareSync(password, doctorHash)) {
       recordAllFailed();

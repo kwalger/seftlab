@@ -1,13 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { LogIn, User, Lock } from 'lucide-react';
 import {
+  User as FirebaseUser,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db, googleProvider } from '@/lib/firebase';
@@ -131,6 +134,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const redirectCheckedRef = useRef(false);
 
   // إكمال الجلسة والتوجيه بناءً على الرتبة
   const completeSession = async (
@@ -199,6 +203,106 @@ export default function LoginPage() {
     }
   };
 
+  const completeFirebaseUserSession = async (user: FirebaseUser) => {
+    const idToken = await user.getIdToken();
+    const { role, name, photoURL } = await syncFirestoreUser(
+      user.uid,
+      user.email,
+      user.displayName,
+      user.photoURL
+    );
+
+    await completeSession(
+      user.uid,
+      user.email,
+      name,
+      role,
+      photoURL || user.photoURL,
+      idToken
+    );
+  };
+
+  const completeFirebaseUserSessionRef = useRef(completeFirebaseUserSession);
+  completeFirebaseUserSessionRef.current = completeFirebaseUserSession;
+
+  const showGoogleAuthError = (err: unknown) => {
+    triggerHaptic('error');
+    const authError = err as { code?: string; message?: string };
+    const code = authError?.code || '';
+
+    if (code === 'auth/popup-closed-by-user') {
+      const msg = 'تم إغلاق نافذة تسجيل الدخول بواسطة Google قبل إتمامها.';
+      setErrorMessage(msg);
+      toast.error(msg);
+    } else if (code === 'auth/cancelled-popup-request') {
+      const msg = 'تم إلغاء طلب تسجيل الدخول عبر Google.';
+      setErrorMessage(msg);
+      toast.error(msg);
+    } else if (code === 'auth/popup-blocked') {
+      const msg = 'تم حظر النافذة المنبثقة من قبل المتصفح. يرجى السماح بالنوافذ المنبثقة لموقع SEFT Lab.';
+      setErrorMessage(msg);
+      toast.error(msg);
+    } else if (code === 'auth/operation-not-allowed') {
+      const msg = 'خدمة الدخول بواسطة Google غير متاحة حالياً. يرجى استخدام البريد وكلمة المرور.';
+      setErrorMessage(msg);
+      toast.error(msg);
+    } else if (code === 'auth/unauthorized-domain') {
+      const msg = 'تعذر تسجيل الدخول من هذا النطاق. يرجى التحقق من النطاق المصرح به في Firebase.';
+      setErrorMessage(msg);
+      toast.error(msg);
+    } else {
+      const msg = 'تعذر إتمام الدخول بواسطة Google. يرجى المحاولة مجدداً.';
+      setErrorMessage(msg);
+      toast.error(msg);
+    }
+  };
+
+  useEffect(() => {
+    if (redirectCheckedRef.current) return;
+    redirectCheckedRef.current = true;
+
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (!result?.user) return;
+        setGoogleLoading(true);
+        try {
+          await completeFirebaseUserSessionRef.current(result.user);
+        } catch (err) {
+          showGoogleAuthError(err);
+        } finally {
+          setGoogleLoading(false);
+        }
+      })
+      .catch((err) => {
+        showGoogleAuthError(err);
+      });
+  }, []);
+
+  const tryServerLogin = async (
+    identifierVal: string,
+    passwordVal: string
+  ): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: identifierVal, password: passwordVal }),
+      });
+      const data = await res.json();
+      if (data.ok && data.session) {
+        await completeSession(
+          data.session.id,
+          data.session.email,
+          data.session.name,
+          data.session.role,
+          data.session.avatarUrl
+        );
+        return true;
+      }
+    } catch {}
+    return false;
+  };
+
   // 1. تسجيل الدخول بالبريد وكلمة المرور
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -212,55 +316,35 @@ export default function LoginPage() {
 
     setLoading(true);
 
-    // 0. التحقق من صلاحيات الأدمن المباشرة وحسابات النظام
-    const cleanId = email.toLowerCase();
-    if (cleanId === 'admin' || isSuperAdminEmail(cleanId) || !cleanId.includes('@')) {
-      try {
-        const res = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ identifier: email, password }),
-        });
-        const data = await res.json();
-        if (data.ok && data.session) {
-          await completeSession(
-            data.session.id,
-            data.session.email,
-            data.session.name,
-            data.session.role,
-            data.session.avatarUrl
-          );
+    try {
+      // 0. التحقق من صلاحيات الأدمن والدكاترة وحسابات النظام مباشرة
+      const cleanId = email.toLowerCase();
+      const isDoctorAccount = /^dr\d*@seftlab\.com$/i.test(cleanId);
+      if (
+        cleanId === 'admin' ||
+        isSuperAdminEmail(cleanId) ||
+        isDoctorAccount ||
+        !cleanId.includes('@')
+      ) {
+        if (await tryServerLogin(email, password)) {
           return;
         }
-      } catch {}
-    }
+      }
 
-    try {
-      // التحقق الفعلي من الحساب
+      // التحقق الفعلي من الحساب عبر Firebase
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      const idToken = await user.getIdToken();
-
-      // فحص الدور
-      const { role, name, photoURL } = await syncFirestoreUser(
-        user.uid,
-        user.email,
-        user.displayName,
-        user.photoURL
-      );
-
-      await completeSession(
-        user.uid,
-        user.email,
-        name,
-        role,
-        photoURL || user.photoURL,
-        idToken
-      );
+      await completeFirebaseUserSession(userCredential.user);
     } catch (err: unknown) {
-      triggerHaptic('error');
       const authError = err as { code?: string; message?: string };
       const code = authError?.code || '';
+
+      if (code === 'auth/invalid-credential' || code === 'auth/user-not-found') {
+        if (await tryServerLogin(email, password)) {
+          return;
+        }
+      }
+
+      triggerHaptic('error');
 
       if (
         code === 'auth/wrong-password' ||
@@ -301,55 +385,19 @@ export default function LoginPage() {
     try {
       // فتح نافذة Google الرسمية وتسجيل الدخول
       const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      const idToken = await user.getIdToken();
-
-      // فحص وثيقة المستخدم
-      const { role, name, photoURL } = await syncFirestoreUser(
-        user.uid,
-        user.email,
-        user.displayName,
-        user.photoURL
-      );
-
-      await completeSession(
-        user.uid,
-        user.email,
-        name,
-        role,
-        photoURL || user.photoURL,
-        idToken
-      );
+      await completeFirebaseUserSession(result.user);
     } catch (err: unknown) {
-      triggerHaptic('error');
       const authError = err as { code?: string; message?: string };
-      const code = authError?.code || '';
-
-      if (code === 'auth/popup-closed-by-user') {
-        const msg = 'تم إغلاق نافذة تسجيل الدخول بواسطة Google قبل إتمامها.';
-        setErrorMessage(msg);
-        toast.error(msg);
-      } else if (code === 'auth/cancelled-popup-request') {
-        const msg = 'تم إلغاء طلب تسجيل الدخول عبر Google.';
-        setErrorMessage(msg);
-        toast.error(msg);
-      } else if (code === 'auth/popup-blocked') {
-        const msg = 'تم حظر النافذة المنبثقة من قبل المتصفح. يرجى السماح بالنوافذ المنبثقة لموقع SEFT Lab.';
-        setErrorMessage(msg);
-        toast.error(msg);
-      } else if (code === 'auth/operation-not-allowed') {
-        const msg = 'خدمة الدخول بواسطة Google غير متاحة حالياً. يرجى استخدام البريد وكلمة المرور.';
-        setErrorMessage(msg);
-        toast.error(msg);
-      } else if (code === 'auth/unauthorized-domain') {
-        const msg = 'تعذر تسجيل الدخول من هذا النطاق. يرجى المحاولة لاحقاً.';
-        setErrorMessage(msg);
-        toast.error(msg);
-      } else {
-        const msg = 'تعذر إتمام الدخول بواسطة Google. يرجى المحاولة مجدداً.';
-        setErrorMessage(msg);
-        toast.error(msg);
+      if (authError?.code === 'auth/popup-blocked') {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch (redirectErr) {
+          showGoogleAuthError(redirectErr);
+          return;
+        }
       }
+      showGoogleAuthError(err);
     } finally {
       setGoogleLoading(false);
     }

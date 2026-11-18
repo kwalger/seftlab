@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -12,9 +12,17 @@ import {
   ArrowLeft,
   ArrowRight,
 } from 'lucide-react';
-import { createUserWithEmailAndPassword, updateProfile, signInWithPopup } from 'firebase/auth';
+import {
+  User as FirebaseUser,
+  createUserWithEmailAndPassword,
+  updateProfile,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+} from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '@/lib/firebase';
+import { isSuperAdminEmail, resolveUserRole } from '@/lib/auth-constants';
 import { useAppStore } from '@/store/use-app-store';
 import { useKeyboardOffset } from '@/hooks/use-keyboard-offset';
 import { triggerHaptic } from '@/lib/haptics';
@@ -22,8 +30,33 @@ import { UNIVERSITIES } from '@/data/mock-data';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TadreebakLogo } from '@/components/shared/tadreebak-logo';
+import { UserRole } from '@/types';
 
 const DOCTOR_EMAIL_REGEX = /^dr\d*@seftlab\.com$/i;
+const GOOGLE_REGISTER_PREFS_KEY = 'seftlab_google_register_prefs';
+
+function GoogleIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+      />
+    </svg>
+  );
+}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -41,6 +74,194 @@ export default function RegisterPage() {
   const [departmentOrReg, setDepartmentOrReg] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const redirectCheckedRef = useRef(false);
+
+  const completeGoogleRegistration = async (
+    user: FirebaseUser,
+    prefs?: { role?: 'student' | 'company'; organizationOrUniversity?: string; name?: string }
+  ) => {
+    const userEmail = user.email?.toLowerCase().trim() || '';
+    const isSuper = isSuperAdminEmail(userEmail);
+    const chosenRole: 'student' | 'company' =
+      prefs?.role === 'company' || role === 'company' ? 'company' : 'student';
+
+    let finalRole: UserRole = isSuper ? 'admin' : chosenRole;
+    let displayName =
+      prefs?.name?.trim() ||
+      name.trim() ||
+      user.displayName ||
+      (userEmail ? userEmail.split('@')[0] : 'مستخدم SEFT Lab');
+    let org =
+      prefs?.organizationOrUniversity?.trim() ||
+      organizationOrUniversity.trim() ||
+      UNIVERSITIES[0];
+    let photo = user.photoURL || '';
+
+    const userDocRef = doc(db, 'users', user.uid);
+    const timeout = new Promise<null>((_, reject) =>
+      setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), 3500)
+    );
+
+    const existingSnap: any = await Promise.race([
+      getDoc(userDocRef),
+      timeout,
+    ]).catch(() => null);
+
+    if (existingSnap && typeof existingSnap.exists === 'function' && existingSnap.exists()) {
+      const data = existingSnap.data();
+      finalRole = resolveUserRole(userEmail, data.role, true);
+      if (data.name || data.fullName) displayName = data.name || data.fullName;
+      if (data.organizationOrUniversity) org = data.organizationOrUniversity;
+      if (data.photoURL || data.avatarUrl) photo = data.photoURL || data.avatarUrl;
+    } else {
+      setDoc(
+        userDocRef,
+        {
+          name: displayName,
+          email: userEmail,
+          photoURL: photo,
+          role: finalRole,
+          organizationOrUniversity: org,
+          createdAt: new Date().toISOString(),
+        },
+        { merge: true }
+      ).catch(() => {});
+    }
+
+    const idToken = await user.getIdToken();
+    await fetch('/api/auth/sync-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        idToken,
+        name: displayName,
+        role: finalRole,
+      }),
+    }).catch(() => {});
+
+    document.cookie = `seftlab_role=${finalRole}; path=/; max-age=604800; SameSite=Lax`;
+    document.cookie = `tadreebak_role=${finalRole}; path=/; max-age=604800; SameSite=Lax`;
+    if (userEmail) {
+      document.cookie = `seftlab_email=${encodeURIComponent(userEmail)}; path=/; max-age=604800; SameSite=Lax`;
+    }
+
+    loginUser({
+      id: user.uid,
+      name: displayName,
+      username: userEmail ? userEmail.split('@')[0] : 'user',
+      email: userEmail,
+      role: finalRole,
+      organizationOrUniversity: org,
+      approvalStatus: 'approved',
+      avatarUrl: photo || undefined,
+      photoURL: photo || undefined,
+    });
+
+    triggerHaptic('success');
+    toast.success(`مرحباً بك، ${displayName}`);
+    router.push(
+      finalRole === 'admin'
+        ? '/admin'
+        : finalRole === 'teacher'
+        ? '/teacher'
+        : finalRole === 'company'
+        ? '/company'
+        : '/student'
+    );
+  };
+
+  const completeGoogleRegistrationRef = useRef(completeGoogleRegistration);
+  completeGoogleRegistrationRef.current = completeGoogleRegistration;
+
+  const showGoogleError = (err: unknown) => {
+    triggerHaptic('error');
+    const authError = err as { code?: string };
+    const code = authError?.code || '';
+
+    if (code === 'auth/popup-closed-by-user') {
+      toast.error('تم إغلاق نافذة التسجيل بواسطة Google قبل إتمامها.');
+    } else if (code === 'auth/cancelled-popup-request') {
+      toast.error('تم إلغاء طلب التسجيل عبر Google.');
+    } else if (code === 'auth/popup-blocked') {
+      toast.error('تم حظر النافذة المنبثقة من قبل المتصفح. يرجى السماح بالنوافذ المنبثقة.');
+    } else if (code === 'auth/operation-not-allowed') {
+      toast.error('خدمة التسجيل بواسطة Google غير متاحة حالياً.');
+    } else if (code === 'auth/unauthorized-domain') {
+      toast.error('تعذر التسجيل من هذا النطاق. يرجى التحقق من النطاق المصرح به.');
+    } else {
+      toast.error('تعذر إتمام التسجيل بواسطة Google. يرجى المحاولة مجدداً.');
+    }
+  };
+
+  useEffect(() => {
+    if (redirectCheckedRef.current) return;
+    redirectCheckedRef.current = true;
+
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (!result?.user) return;
+        setGoogleLoading(true);
+        let storedPrefs:
+          | { role?: 'student' | 'company'; organizationOrUniversity?: string; name?: string }
+          | undefined;
+        try {
+          const raw = sessionStorage.getItem(GOOGLE_REGISTER_PREFS_KEY);
+          if (raw) {
+            storedPrefs = JSON.parse(raw);
+            sessionStorage.removeItem(GOOGLE_REGISTER_PREFS_KEY);
+          }
+        } catch {}
+
+        try {
+          await completeGoogleRegistrationRef.current(result.user, storedPrefs);
+        } catch (err) {
+          showGoogleError(err);
+        } finally {
+          setGoogleLoading(false);
+        }
+      })
+      .catch((err) => {
+        showGoogleError(err);
+      });
+  }, []);
+
+  const handleGoogleRegister = async () => {
+    if (role === 'teacher') {
+      toast.error('التسجيل عبر Google متاح لحسابات الطلاب والشركات فقط.');
+      return;
+    }
+
+    setGoogleLoading(true);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      await completeGoogleRegistration(result.user);
+    } catch (err: unknown) {
+      const authError = err as { code?: string };
+      if (authError?.code === 'auth/popup-blocked') {
+        try {
+          sessionStorage.setItem(
+            GOOGLE_REGISTER_PREFS_KEY,
+            JSON.stringify({
+              role: role === 'company' ? 'company' : 'student',
+              organizationOrUniversity: organizationOrUniversity.trim(),
+              name: name.trim(),
+            })
+          );
+        } catch {}
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch (redirectErr) {
+          showGoogleError(redirectErr);
+          return;
+        }
+      }
+      showGoogleError(err);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handleNextStep = () => {
     if (name.trim().length < 3 || organizationOrUniversity.trim().length < 2) {
@@ -458,7 +679,7 @@ export default function RegisterPage() {
                 <Button
                   type="submit"
                   size="lg"
-                  disabled={submitting}
+                  disabled={submitting || googleLoading}
                   className="col-span-2 gap-2"
                 >
                   <UserPlus className="h-4 w-4 stroke-[1.5]" />
@@ -474,6 +695,32 @@ export default function RegisterPage() {
             </>
           )}
         </form>
+
+        {role !== 'teacher' && (
+          <div className="mt-5">
+            <div className="relative my-4 flex items-center justify-center">
+              <span className="w-full border-t border-[#E2E8F0] dark:border-[#1E325C]" />
+              <span className="absolute bg-white px-3 text-xs font-semibold text-[#64748B] dark:bg-[#0A1630] dark:text-[#94A3B8]">
+                أو
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={handleGoogleRegister}
+              disabled={submitting || googleLoading}
+              className="min-h-[48px] w-full gap-3 border-2 border-[#CBD5E1] bg-white text-sm font-bold text-[#0A1630] shadow-xs hover:bg-[#F8FAFC] dark:border-[#1E325C] dark:bg-[#070D1F] dark:text-white dark:hover:bg-[#0F1E3E]"
+            >
+              <GoogleIcon />
+              <span>
+                {googleLoading
+                  ? 'جارٍ الاتصال بـ Google...'
+                  : 'التسجيل السريع بواسطة Google'}
+              </span>
+            </Button>
+          </div>
+        )}
 
         <p className="mt-6 text-center text-xs text-[#526077] dark:text-[#94A3B8]">
           لديك حساب بالفعل؟{' '}
