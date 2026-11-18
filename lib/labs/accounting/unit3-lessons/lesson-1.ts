@@ -4,7 +4,7 @@ export const lesson1: UnitLessonData = {
   id: 'u3-lesson-1',
   lessonNumber: 1,
   title: 'معرفة الطرف المدين والطرف الدائن للقيد المحاسبي',
-  estimatedMinutes: 7,
+  estimatedMinutes: 6,
   xpReward: 45,
   openingQuestion: {
     question: 'لماذا لا يكتفي المحاسب بكتابة "تم شراء سيارة نقداً" بل يترجمها إلى طرف مدين وطرف دائن متساويين؟',

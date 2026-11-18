@@ -4,7 +4,7 @@ export const lesson6: UnitLessonData = {
   id: 'u3-lesson-6',
   lessonNumber: 6,
   title: 'كيفية الترصيد واستخراج أرصدة الحسابات',
-  estimatedMinutes: 8,
+  estimatedMinutes: 5,
   xpReward: 45,
   openingQuestion: {
     question: 'كيف تتحول أرقام ميزان المراجعة المتوازن إلى قوائم مالية معتمدة تخبر المالك بأرباحه وتكشف للبنك عن متانة مركزه المالي؟',

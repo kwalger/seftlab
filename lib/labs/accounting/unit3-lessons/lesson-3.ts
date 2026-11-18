@@ -4,7 +4,7 @@ export const lesson3: UnitLessonData = {
   id: 'u3-lesson-3',
   lessonNumber: 3,
   title: 'معرفة دفتر اليومية وتقسيماته',
-  estimatedMinutes: 7,
+  estimatedMinutes: 6,
   xpReward: 45,
   openingQuestion: {
     question: 'إذا سألك مدير الشركة فجأة: "كم ديناراً لدينا الآن بالضبط في الصندوق؟"، هل ستراجع مئات صفحات اليومية سطراً بسطر؟',

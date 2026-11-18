@@ -26,6 +26,25 @@ const ROLE_LABELS: Record<UserRole, { name: string; home: string }> = {
   admin: { name: 'لوحة إدارة النظام', home: '/admin' },
 };
 
+const ALLOWED_INTERNAL_PREFIXES = ['/student', '/teacher', '/company', '/admin'];
+
+function getSafeInternalPath(rawPath: string | null, fallback: string): string {
+  if (!rawPath) return fallback;
+  const trimmed = rawPath.trim();
+  if (
+    !trimmed.startsWith('/') ||
+    trimmed.startsWith('//') ||
+    trimmed.includes('\\') ||
+    trimmed.includes('://')
+  ) {
+    return fallback;
+  }
+  const matchesAllowed = ALLOWED_INTERNAL_PREFIXES.some(
+    (prefix) => trimmed === prefix || trimmed.startsWith(`${prefix}/`)
+  );
+  return matchesAllowed ? trimmed : fallback;
+}
+
 function UnauthorizedContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -39,21 +58,21 @@ function UnauthorizedContent() {
 
   const isSuperAdmin = isSuperAdminEmail(user?.email);
   const currentRole: UserRole = isSuperAdmin ? 'admin' : (user?.role || 'student');
-  const targetPath = searchParams.get('from') || ROLE_LABELS[requiredRole].home;
+  const targetPath = getSafeInternalPath(
+    searchParams.get('from'),
+    ROLE_LABELS[requiredRole].home
+  );
 
-  // Super Admin auto-recovery fallback: if Hasan Alarjan hits 403, immediately grant admin and redirect
+  // Super Admin / Admin auto-recovery fallback: if admin hits 403, immediately grant admin and redirect
   useEffect(() => {
-    if (user?.email && isSuperAdminEmail(user.email)) {
-      console.log('🛡️ [UnauthorizedPage] Super Admin detected:', {
-        uid: user.id,
-        email: user.email,
-        name: user.name,
-        targetPath,
-      });
-
+    const isUserAdmin =
+      (user?.email && isSuperAdminEmail(user.email)) || user?.role === 'admin';
+    if (isUserAdmin) {
       document.cookie = `seftlab_role=admin; path=/; max-age=604800; SameSite=Lax`;
       document.cookie = `tadreebak_role=admin; path=/; max-age=604800; SameSite=Lax`;
-      document.cookie = `seftlab_email=${encodeURIComponent(user.email)}; path=/; max-age=604800; SameSite=Lax`;
+      if (user?.email) {
+        document.cookie = `seftlab_email=${encodeURIComponent(user.email)}; path=/; max-age=604800; SameSite=Lax`;
+      }
 
       switchRole('admin');
       router.replace(targetPath.startsWith('/admin') ? targetPath : '/admin');

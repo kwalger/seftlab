@@ -4,7 +4,7 @@ export const lesson4: UnitLessonData = {
   id: 'u3-lesson-4',
   lessonNumber: 4,
   title: 'التعرف على دفتر الأستاذ وتقسيماته',
-  estimatedMinutes: 8,
+  estimatedMinutes: 5,
   xpReward: 45,
   openingQuestion: {
     question: 'ما معنى "الترحيل" و"الترصيد"، وكيف يتحول قيد اليومية المكتوب إلى رصيد نهائي دقيق؟',

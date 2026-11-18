@@ -21,6 +21,7 @@ import { generateRadarChartAxes } from '@/lib/labs/skill-calculator';
 import { PageHeader } from '@/components/dashboard/ui-kit';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { isSafeHttpUrl } from '@/lib/validations';
 
 const studentProfileEditorSchema = z.object({
   fullName: z.string().min(3, 'الاسم الكامل مطلوب (3 أحرف على الأقل)'),
@@ -30,8 +31,14 @@ const studentProfileEditorSchema = z.object({
   city: z.string().min(2, 'المدينة مطلوبة'),
   bio: z.string().min(20, 'النبذة المهنية يجب أن تكون 20 حرفاً على الأقل'),
   educationDetails: z.string().min(10, 'تفاصيل التعليم مطلوبة'),
-  githubOrPortfolio: z.string().optional(),
-  linkedinUrl: z.string().optional(),
+  githubOrPortfolio: z
+    .string()
+    .optional()
+    .refine(isSafeHttpUrl, 'يجب أن يبدأ الرابط بـ https:// أو http://'),
+  linkedinUrl: z
+    .string()
+    .optional()
+    .refine(isSafeHttpUrl, 'يجب أن يبدأ الرابط بـ https:// أو http://'),
 });
 
 type ProfileEditorValues = z.infer<typeof studentProfileEditorSchema>;
@@ -95,13 +102,18 @@ export default function StudentProfileEditorPage() {
       toast.error('يرجى إدخال عنوان المشروع وملخصه التطبيقي');
       return;
     }
+    const trimmedLink = newProjLink.trim();
+    if (trimmedLink && !isSafeHttpUrl(trimmedLink)) {
+      toast.error('رابط المشروع يجب أن يبدأ بـ https:// أو http://');
+      return;
+    }
     addProject({
       title: newProjTitle.trim(),
       labName: newProjLab,
       summary: newProjSummary.trim(),
       metricsText: newProjMetrics.trim() || 'مشروع تطبيقي موثق',
       date: 'نوفمبر 2026',
-      link: newProjLink.trim() || 'https://github.com/yazan-nabulsi',
+      link: trimmedLink || 'https://github.com/yazan-nabulsi',
     });
     completeChecklistStep('step-links');
     setNewProjTitle('');

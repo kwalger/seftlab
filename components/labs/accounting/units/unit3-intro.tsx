@@ -29,6 +29,7 @@ import {
 } from '@/lib/labs/accounting/unit3-lessons';
 import type { QuickQuizConfig, UnitLessonData } from '@/lib/labs/accounting/unit1-lessons/types';
 import { LessonPlayer } from '@/components/labs/accounting/lesson-player';
+import { VideoPlayer } from '@/components/labs/accounting/video-player';
 import { useAppStore } from '@/store/use-app-store';
 import { triggerHaptic } from '@/lib/haptics';
 import { Button } from '@/components/ui/button';
@@ -49,6 +50,7 @@ type Unit3ScreenMode =
   | 'practice_hazem';
 
 export default function Unit3Intro({
+  initialExerciseId,
   onBackToMap,
 }: Unit3IntroProps) {
   const { awardLabXp } = useAppStore();
@@ -147,23 +149,29 @@ export default function Unit3Intro({
       toast.info('هذا المساق غير متاح حالياً.');
       return;
     }
+    triggerHaptic('tap');
     if (lessonNumber === 0) {
-      triggerHaptic('tap');
       setActiveLessonNum(0);
       setMode('overview');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-    const unlockedLimit = highestCompleted + 1;
-    if (lessonNumber > unlockedLimit) {
-      toast.info(`أكمل المساق ${lessonNumber - 1} أولاً ليُفتح لك هذا المساق.`);
-      return;
-    }
-    triggerHaptic('tap');
     setActiveLessonNum(lessonNumber);
     setMode('lesson');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  useEffect(() => {
+    if (initialExerciseId) {
+      const match = initialExerciseId.match(/(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num >= 0 && num <= 7) {
+          openLesson(num);
+        }
+      }
+    }
+  }, [initialExerciseId]);
 
   const handleFinishOverviewAndStartLesson1 = () => {
     if (!(unit3CompletedLessons || []).includes(0)) {
@@ -491,73 +499,51 @@ export default function Unit3Intro({
     );
   }
 
-  // شاشة النظرة العامة
+  // وضع النظرة العامة
   if (mode === 'overview') {
     return (
-      <div className="mx-auto max-w-3xl space-y-6">
-        <div className="flex items-center justify-between">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setMode('map')}
-            className="gap-1.5"
-          >
-            <ArrowRight className="h-4 w-4" />
-            <span>العودة لخريطة الوحدة</span>
-          </Button>
-          <Badge className="bg-[#2563EB]/10 text-[#2563EB]">
-            الفصل الثالث: نظرة عامة
-          </Badge>
-        </div>
+      <div className="mx-auto max-w-[640px] space-y-6 pb-20">
+        <button
+          type="button"
+          onClick={() => setMode('map')}
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full px-3 text-sm font-bold text-[#475569] hover:bg-[#F1F5F9] dark:text-[#94A3B8]"
+        >
+          <ArrowRight className="h-4 w-4 stroke-[1.75]" />
+          <span>العودة لخريطة المساقات</span>
+        </button>
 
-        <div className="rounded-[28px] border border-[#E2E8F0] bg-white p-6 shadow-soft sm:p-8 dark:border-[#1E325C] dark:bg-[#0A1630]">
-          <h2 className="text-xl font-bold text-[#0A1630] sm:text-2xl dark:text-white">
-            الدورة المحاسبية (Accounting Cycle): التسجيل، الترحيل، ميزان المراجعة، والقوائم المالية
+        <div className="rounded-[24px] border border-[#E2E8F0] bg-white p-4 shadow-[0_12px_32px_-16px_rgba(15,23,42,0.08)] sm:rounded-[28px] sm:p-8 dark:border-[#1E325C] dark:bg-[#0A1630]">
+          <span className="inline-block rounded-full bg-[#2F6BFF]/10 px-3.5 py-1 text-xs font-bold text-[#2F6BFF]">
+            نظرة عامة تمهيدية
+          </span>
+          <h2 className="mt-4 text-[22px] leading-[1.4] font-bold text-[#0A1630] sm:text-[26px] dark:text-white">
+            مقدمة الفصل الثالث: الدورة المحاسبية
           </h2>
-          <p className="mt-2 text-sm leading-relaxed text-[#526077] dark:text-[#94A3B8]">
-            يشرح هذا الفصل الركائز الأساسية لمسك الدفاتر المحاسبية وفق أهداف المنهاج الجامعي المعتمد: فهم طبيعة الحسابات المدينة والدائنة، إثبات قيود اليومية البسيطة والمركبة، الترحيل لدفتر الأستاذ (حسابات T)، الترصيد، إعداد ميزان المراجعة، وإعداد القوائم المالية للمشاريع الخدمية.
+          <p className="mt-2 text-[18px] leading-[1.85] font-normal text-[#475569] dark:text-[#CBD5E1]">
+            شاهد هذا الفيديو لتتعرف على خريطة الفصل الثالث، الدورة المحاسبية (التسجيل، الترحيل، ميزان المراجعة، والقوائم المالية).
           </p>
 
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 dark:border-[#1E325C] dark:bg-[#070D1F]">
-              <h4 className="flex items-center gap-2 text-sm font-bold text-[#0A1630] dark:text-white">
-                <FileSpreadsheet className="h-4 w-4 text-[#2563EB]" />
-                أهداف الفصل الثالث من الكتاب
-              </h4>
-              <ul className="mt-2 space-y-1 text-xs text-[#526077] dark:text-[#94A3B8]">
-                <li>• معرفة الطرف المدين والطرف الدائن للقيد المحاسبي.</li>
-                <li>• كيفية تسجيل العمليات وعمل قيود اليومية.</li>
-                <li>• معرفة دفتر اليومية وتقسيماته.</li>
-                <li>• التعرف على دفتر الأستاذ وتقسيماته.</li>
-                <li>• كيفية الترحيل إلى دفتر الأستاذ.</li>
-                <li>• كيفية الترصيد واستخراج أرصدة الحسابات.</li>
-                <li>• التعرف على ميزان المراجعة.</li>
-              </ul>
-            </div>
-
-            <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 dark:border-[#1E325C] dark:bg-[#070D1F]">
-              <h4 className="flex items-center gap-2 text-sm font-bold text-[#0A1630] dark:text-white">
-                <Calculator className="h-4 w-4 text-emerald-600" />
-                تطبيقات وتمارين عملية بالكتاب
-              </h4>
-              <ul className="mt-2 space-y-1 text-xs text-[#526077] dark:text-[#94A3B8]">
-                <li>• تمرين تصنيف الحسابات إلى (أصول، التزامات، حقوق ملكية).</li>
-                <li>• تمرين محلات حازم لاستخراج:</li>
-                <li>&nbsp;&nbsp;1) صافي الدخل (الإيرادات 23,000 - المصاريف 12,000 = 11,000).</li>
-                <li>&nbsp;&nbsp;2) رأس مال نهاية الفترة (5,000 + 11,000 - 1,000 = 15,000).</li>
-                <li>&nbsp;&nbsp;3) إجمالي الأصول (25,000 د.أ).</li>
-              </ul>
-            </div>
+          <div className="mt-6">
+            <VideoPlayer
+              lessonId="u3-lesson-0"
+              title="نظرة عامة على الوحدة الثالثة — الدورة المحاسبية"
+              onWatchedComplete={() => {
+                if (!(unit3CompletedLessons || []).includes(0)) {
+                  completeUnit3Lesson(0);
+                  toast.success('أحسنت! أتممت النظرة العامة.');
+                }
+              }}
+            />
           </div>
 
           <div className="mt-8 flex justify-end">
             <Button
-              size="lg"
+              type="button"
               onClick={handleFinishOverviewAndStartLesson1}
-              className="gap-2"
+              className="min-h-[48px] px-6 text-base font-bold"
             >
-              <span>بدء المساق الأول: الطرف المدين والدائن</span>
-              <ChevronLeft className="h-4 w-4" />
+              <span>ابدأ المساق الأول: معرفة الطرف المدين والدائن</span>
+              <ChevronLeft className="h-4 w-4 stroke-[2]" />
             </Button>
           </div>
         </div>
@@ -565,231 +551,211 @@ export default function Unit3Intro({
     );
   }
 
-  // الشاشة الرئيسية لخريطة الوحدة الثالثة
-  const totalGraded = UNIT3_LESSONS_META.filter((m) => m.lessonNumber >= 1).length;
-  const doneCount = (unit3CompletedLessons || []).filter((n) => n >= 1).length;
-  const progressPct = Math.round((doneCount / totalGraded) * 100);
+  // وضع خريطة مساقات الوحدة الثالثة (القائمة العمودية المتصلة المطابقة تماماً لصورة الوحدة الثانية والأولى)
+  const examRecord = unitExamResults[3];
 
   return (
-    <div className="space-y-6">
-      {/* رأس الصفحة مع شريط التقدم */}
-      <div className="flex flex-col gap-4 rounded-[28px] border border-[#E2E8F0] bg-white p-5 shadow-soft sm:flex-row sm:items-center sm:justify-between sm:p-6 dark:border-[#1E325C] dark:bg-[#0A1630]">
-        <div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onBackToMap}
-              className="h-8 gap-1 px-2 text-xs text-[#64748B] hover:text-[#0A1630] dark:text-[#94A3B8] dark:hover:text-white"
-            >
-              <ArrowRight className="h-3.5 w-3.5" />
-              <span>خريطة المنهاج</span>
-            </Button>
-            <span className="text-xs text-[#CBD5E1] dark:text-[#334155]">/</span>
-            <Badge className="bg-[#2563EB]/10 text-[#2563EB]">
-              الوحدة 3
-            </Badge>
-          </div>
-          <h1 className="mt-2 text-lg font-bold text-[#0A1630] sm:text-2xl dark:text-white">
-            الدورة المحاسبية: التسجيل، الترحيل، ميزان المراجعة، والقوائم المالية
-          </h1>
-          <p className="mt-1 text-xs text-[#64748B] sm:text-sm dark:text-[#94A3B8]">
-            7 مساقات تعليمية وتطبيقية متوافقة نصاً وتفصيلاً مع أهداف الفصل الثالث من الكتاب الجامعي.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-end">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setGlossaryOpen(true)}
-              className="h-8 gap-1.5 text-xs"
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              <span>قاموس المصطلحات</span>
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => openLesson(resumeLessonNum)}
-              className="h-8 gap-1.5 text-xs"
-            >
-              <Play className="h-3.5 w-3.5 fill-current" />
-              <span>متابعة التعلم (المساق {resumeLessonNum})</span>
-            </Button>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-[#64748B] dark:text-[#94A3B8]">
-            <span>إنجاز الوحدة: {progressPct}%</span>
-            <span className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-              <span
-                className="block h-full bg-[#2563EB] transition-all duration-300"
-                style={{ width: `${progressPct}%` }}
-              />
-            </span>
-          </div>
-        </div>
+    <div className="mx-auto max-w-[640px] space-y-6 pb-16">
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={onBackToMap}
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full px-3 text-sm font-bold text-[#475569] hover:bg-[#F1F5F9] dark:text-[#94A3B8]"
+        >
+          <ArrowRight className="h-4 w-4 stroke-[1.75]" />
+          <span>العودة لخريطة المنهاج</span>
+        </button>
+        <span className="font-tabular text-sm font-bold text-[#2F6BFF]">
+          {completedGradedLessons.length} / {gradedLessonsCount} مكتمل
+        </span>
       </div>
 
-      {/* مسارات الدروس */}
-      <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
-        {UNIT3_LESSONS_META.map((lesson) => {
-          const isDone = (unit3CompletedLessons || []).includes(lesson.lessonNumber);
-          const isUnlocked =
-            lesson.lessonNumber === 0 ||
-            lesson.lessonNumber <= highestCompleted + 1;
+      <div className="px-1">
+        <h2 className="text-2xl font-bold text-[#0A1630] dark:text-white">
+          مسار دروس الوحدة الثالثة
+        </h2>
+        <p className="mt-1 text-base text-[#526077] dark:text-[#94A3B8]">
+          تبدأ بالنظرة العامة ثم يُفتح كل درس بعد إنهاء الدرس الذي يسبقه.
+        </p>
+      </div>
+
+      {/* المسار العمودي المتصل للمساقات */}
+      <div className="relative space-y-3 before:absolute before:top-7 before:right-[27px] before:bottom-7 before:w-0.5 before:bg-[#E2E8F0] dark:before:bg-[#1E325C]">
+        {UNIT3_LESSONS_META.map((item) => {
+          const isDone = (unit3CompletedLessons || []).includes(item.lessonNumber);
+          const isUnlockedByProgress =
+            item.lessonNumber === 0
+              ? true
+              : item.isAvailable && item.lessonNumber <= highestCompleted + 1;
           const isCurrent =
-            !isDone &&
-            (lesson.lessonNumber === 0
-              ? needsLesson0
-              : lesson.lessonNumber === resumeLessonNum);
+            item.lessonNumber === 0
+              ? !isDone && needsLesson0
+              : item.isAvailable &&
+                !isDone &&
+                !needsLesson0 &&
+                item.lessonNumber === resumeLessonNum;
+
+          const statusLabel = isDone
+            ? 'مكتمل'
+            : isCurrent
+            ? 'الحالي'
+            : isUnlockedByProgress
+            ? 'متاح'
+            : 'مقفل';
 
           return (
-            <button
-              key={lesson.id}
-              type="button"
-              disabled={!isUnlocked}
-              onClick={() => openLesson(lesson.lessonNumber)}
-              className={cn(
-                'group relative flex w-full items-start gap-3.5 rounded-[22px] border p-4 text-right transition-all sm:p-5',
-                isDone
-                  ? 'border-emerald-200 bg-emerald-50/30 hover:border-emerald-400 dark:border-emerald-900/40 dark:bg-emerald-950/10'
-                  : isCurrent
-                  ? 'border-[#2563EB] bg-[#2563EB]/[0.03] shadow-md ring-2 ring-[#2563EB]/15'
-                  : isUnlocked
-                  ? 'border-[#E2E8F0] bg-white hover:-translate-y-0.5 hover:border-[#2563EB]/40 dark:border-[#1E325C] dark:bg-[#0A1630]'
-                  : 'cursor-not-allowed border-[#E2E8F0]/70 bg-[#F8FAFC] opacity-60 dark:border-[#1E325C]/60 dark:bg-[#070D1F]'
-              )}
-            >
-              <span
+            <div key={item.id} className="space-y-3">
+              <button
+                type="button"
+                disabled={!isUnlockedByProgress}
+                onClick={() => openLesson(item.lessonNumber)}
                 className={cn(
-                  'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl font-tabular text-sm font-bold',
-                  isDone
-                    ? 'bg-emerald-500 text-white'
-                    : isCurrent
-                    ? 'bg-[#2563EB] text-white shadow-sm'
-                    : isUnlocked
-                    ? 'border border-[#E2E8F0] bg-white text-[#0A1630] dark:border-[#1E325C] dark:bg-[#070D1F] dark:text-white'
-                    : 'bg-[#E2E8F0] text-[#94A3B8] dark:bg-[#1E325C] dark:text-[#64748B]'
+                  'relative flex w-full items-center gap-4 rounded-[22px] border p-4 text-right transition-all',
+                  isCurrent
+                    ? 'border-2 border-[#2F6BFF] bg-white shadow-[0_8px_24px_-12px_rgba(47,107,255,0.35)] dark:bg-[#0A1630]'
+                    : isUnlockedByProgress
+                    ? 'border-[#E2E8F0] bg-white hover:border-[#2F6BFF]/50 dark:border-[#1E325C] dark:bg-[#0A1630]'
+                    : 'cursor-not-allowed border-[#E2E8F0]/70 bg-[#F8FAFC] opacity-75 dark:border-[#1E325C]/60 dark:bg-[#070D1F]'
                 )}
               >
-                {isDone ? (
-                  <CheckCircle2 className="h-5 w-5" />
-                ) : isUnlocked ? (
-                  lesson.lessonNumber === 0 ? '★' : lesson.lessonNumber
-                ) : (
-                  <Lock className="h-4 w-4" />
-                )}
-              </span>
+                <span
+                  className={cn(
+                    'relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-tabular text-sm font-bold',
+                    isDone
+                      ? 'bg-[#10B981] text-white'
+                      : isCurrent
+                      ? 'bg-[#2F6BFF] text-white'
+                      : isUnlockedByProgress
+                      ? 'border border-[#E2E8F0] bg-[#F8FAFC] text-[#0A1630] dark:border-[#1E325C] dark:bg-[#070D1F] dark:text-white'
+                      : 'bg-[#E2E8F0] text-[#64748B] dark:bg-[#1E325C] dark:text-[#94A3B8]'
+                  )}
+                >
+                  {isDone ? (
+                    <CheckCircle2 className="h-5 w-5" />
+                  ) : isUnlockedByProgress ? (
+                    item.lessonNumber === 0 ? '★' : item.lessonNumber
+                  ) : (
+                    <Lock className="h-4 w-4" />
+                  )}
+                </span>
 
-              <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                  <h4 className="text-sm font-bold text-[#0A1630] sm:text-base dark:text-white">
-                    {lesson.title}
-                  </h4>
-                  <span
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="truncate text-base font-bold text-[#0A1630] dark:text-white">
+                      {item.title}
+                    </h3>
+                    <span
+                      className={cn(
+                        'shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold',
+                        isDone
+                          ? 'bg-[#10B981]/15 text-[#047857] dark:text-[#34D399]'
+                          : isCurrent
+                          ? 'bg-[#2F6BFF]/10 text-[#2F6BFF]'
+                          : 'bg-[#F1F5F9] text-[#64748B] dark:bg-[#070D1F] dark:text-[#94A3B8]'
+                      )}
+                    >
+                      {statusLabel}
+                    </span>
+                  </div>
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-[#64748B] dark:text-[#94A3B8]">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>{item.estimatedMinutes} دقائق</span>
+                  </p>
+                </div>
+              </button>
+
+              {/* الاختبارات السريعة بين المساقات */}
+              {UNIT3_QUICK_QUIZZES.map((quiz) => {
+                if (quiz.afterLessonNumber !== item.lessonNumber) return null;
+                const quizUnlocked = (unit3CompletedLessons || []).includes(quiz.afterLessonNumber);
+                const quizDone = (unit3CompletedQuizzes || []).includes(quiz.id);
+                return (
+                  <button
+                    key={quiz.id}
+                    type="button"
+                    disabled={!quizUnlocked}
+                    onClick={() => openQuickQuiz(quiz)}
                     className={cn(
-                      'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold',
-                      isDone
-                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                        : isCurrent
-                        ? 'bg-[#2563EB]/10 text-[#2563EB]'
-                        : isUnlocked
-                        ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                        : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'
+                      'relative ms-12 flex w-[calc(100%-3rem)] items-center justify-between rounded-[18px] border px-4 py-3 text-right text-sm font-bold',
+                      quizDone
+                        ? 'border-[#10B981]/40 bg-[#10B981]/10 text-[#047857] dark:text-[#34D399]'
+                        : quizUnlocked
+                        ? 'border-[#2F6BFF]/40 bg-[#2F6BFF]/10 text-[#2F6BFF]'
+                        : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#94A3B8] dark:border-[#1E325C] dark:bg-[#070D1F]'
                     )}
                   >
-                    {isDone ? 'مكتمل' : isCurrent ? 'الحالي' : isUnlocked ? 'متاح' : 'مقفل'}
-                  </span>
-                </div>
-
-                <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[#64748B] dark:text-[#94A3B8]">
-                  {lesson.shortGoal}
-                </p>
-
-                <div className="mt-2.5 flex items-center gap-2 text-[11px] text-[#94A3B8]">
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {lesson.estimatedMinutes} دقائق
-                  </span>
-                  {lesson.quickQuizAfterId && (
-                    <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-                      ⚡ اختبار سريع
+                    <span className="inline-flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 shrink-0" />
+                      <span>{quiz.title}</span>
                     </span>
-                  )}
-                </div>
-              </div>
-            </button>
+                    <span className="text-xs">
+                      {quizDone ? 'مكتمل' : quizUnlocked ? 'ابدأ الآن' : 'مقفل'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           );
         })}
       </div>
 
-      {/* بطاقة الاختبار الختامي للوحدة 3 */}
-      <div className="rounded-[28px] border-2 border-dashed border-[#2563EB]/30 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 p-6 dark:border-[#1E325C] dark:from-[#0A1630] dark:to-[#070D1F]">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Award className="h-5 w-5 text-[#2563EB]" />
-              <h3 className="text-base font-bold text-[#0A1630] dark:text-white">
-                الاختبار الشامل للوحدة 3 (الفصل الثالث)
-              </h3>
-            </div>
-            <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">
-              12 سؤالاً شاملاً تغطي أهداف الفصل الثالث وتمارين الكتاب وتمنحك شارة "مشغل الدورة المحاسبية".
-            </p>
-          </div>
-          <Button
-            onClick={openFinalExam}
-            disabled={highestCompleted < 4}
-            className="shrink-0 gap-1.5"
+      {/* أسفل المسار: قاموس المصطلحات والاختبار النهائي */}
+      <div className="space-y-3 pt-4">
+        <div className="rounded-[24px] border border-[#E2E8F0] bg-white p-5 dark:border-[#1E325C] dark:bg-[#0A1630]">
+          <button
+            type="button"
+            onClick={() => setGlossaryOpen((v) => !v)}
+            className="flex min-h-[44px] w-full items-center justify-between text-right font-bold text-[#0A1630] dark:text-white"
           >
-            <Sparkles className="h-4 w-4" />
-            <span>بدء الاختبار الشامل (12 سؤال)</span>
-          </Button>
-        </div>
-      </div>
+            <span className="inline-flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-[#2F6BFF]" />
+              <span>قاموس مصطلحات الفصل الثالث (اختياري)</span>
+            </span>
+            <span className="text-xs text-[#2F6BFF]">
+              {glossaryOpen ? 'إخفاء' : 'عرض'}
+            </span>
+          </button>
 
-      {/* نافذة قاموس المصطلحات */}
-      {glossaryOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-[28px] border border-[#E2E8F0] bg-white p-6 shadow-2xl dark:border-[#1E325C] dark:bg-[#0A1630]">
-            <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-4 dark:border-[#1E325C]">
-              <div>
-                <h3 className="text-lg font-bold text-[#0A1630] dark:text-white">
-                  قاموس مصطلحات الدورة المحاسبية (الفصل الثالث)
-                </h3>
-                <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">
-                  المصطلحات العربية والإنجليزية المعتمدة في المنهاج.
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setGlossaryOpen(false)}
-              >
-                إغلاق
-              </Button>
-            </div>
-
-            <div className="mt-4 divide-y divide-[#E2E8F0] dark:divide-[#1E325C]">
-              {UNIT3_GLOSSARY_TERMS.map((term, i) => (
-                <div key={i} className="py-3 text-right">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-[#2563EB] dark:text-blue-400">
+          {glossaryOpen && (
+            <div className="mt-4 space-y-2.5 border-t border-[#E2E8F0] pt-4 dark:border-[#1E325C]">
+              {UNIT3_GLOSSARY_TERMS.map((term) => (
+                <div
+                  key={term.arabicTerm}
+                  className="rounded-[16px] bg-[#F8FAFC] p-3.5 dark:bg-[#070D1F]"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-bold text-[#0A1630] dark:text-white">
                       {term.arabicTerm}
                     </span>
-                    <span className="font-mono text-xs text-[#64748B] dark:text-[#94A3B8]">
+                    <span dir="ltr" className="text-xs font-semibold text-[#2F6BFF]">
                       {term.englishTerm}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs text-[#526077] dark:text-[#94A3B8]">
+                  <p className="mt-1 text-xs leading-relaxed text-[#526077] dark:text-[#94A3B8]">
                     {term.simpleMeaning}
                   </p>
                 </div>
               ))}
             </div>
-          </div>
+          )}
         </div>
-      )}
+
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-[#2F6BFF]/30 bg-white p-5 dark:border-[#2F6BFF]/40 dark:bg-[#0A1630]">
+          <div>
+            <h3 className="text-base font-bold text-[#0A1630] dark:text-white">
+              الاختبار النهائي للوحدة الثالثة ({UNIT3_EXAM_QUESTIONS.length} أسئلة)
+            </h3>
+            <p className="text-xs text-[#526077] dark:text-[#94A3B8]">
+              {examRecord
+                ? `أعلى نتيجة لك: ${examRecord.scorePct}%`
+                : 'تقييم شامل لجميع مساقات الفصل الثالث من الكتاب المعتمد (60% للنجاح)'}
+            </p>
+          </div>
+          <Button type="button" onClick={openFinalExam}>
+            بدء الاختبار النهائي
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,7 +2,11 @@ import React from 'react';
 import type { Metadata } from 'next';
 import { STUDENTS_DATA } from '@/data/mock-data';
 import { StudentProfileClient } from '@/components/students/student-profile-client';
-import { getPersonJsonLd, getBreadcrumbJsonLd } from '@/lib/seo/json-ld';
+import {
+  getPersonJsonLd,
+  getBreadcrumbJsonLd,
+  safeJsonLdStringify,
+} from '@/lib/seo/json-ld';
 
 export const runtime = 'edge';
 
@@ -46,7 +50,7 @@ export default async function StudentPublicProfilePage({ params }: PageProps) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
+          __html: safeJsonLdStringify(
             personJsonLd ? [breadcrumbJsonLd, personJsonLd] : [breadcrumbJsonLd]
           ),
         }}

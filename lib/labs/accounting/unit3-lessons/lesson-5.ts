@@ -4,7 +4,7 @@ export const lesson5: UnitLessonData = {
   id: 'u3-lesson-5',
   lessonNumber: 5,
   title: 'كيفية الترحيل إلى دفتر الأستاذ',
-  estimatedMinutes: 8,
+  estimatedMinutes: 5,
   xpReward: 45,
   openingQuestion: {
     question: 'كيف يتأكد المحاسب من صحة تسجيل مئات العمليات وترحيلها قبل أن يبدأ في كتابة القوائم المالية الختامية؟',

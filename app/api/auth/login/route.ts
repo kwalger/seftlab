@@ -1,16 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyServerCredentials } from '@/lib/auth-server';
-import { createSignedSessionToken } from '@/lib/session';
+import { createSignedSessionToken, verifySameOriginRequest } from '@/lib/session';
 
 export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
+  if (!verifySameOriginRequest(request)) {
+    return NextResponse.json(
+      { ok: false, error: 'طلب غير مصرح به من مصدر خارجي.' },
+      { status: 403 }
+    );
+  }
+
   try {
     const body = await request.json();
-    const identifier = String(body.identifier || '');
-    const password = String(body.password || '');
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json(
+        { ok: false, error: 'صيغة الطلب غير صالحة.' },
+        { status: 400 }
+      );
+    }
 
-    if (!identifier || !password) {
+    const identifier = typeof body.identifier === 'string' ? body.identifier : '';
+    const password = typeof body.password === 'string' ? body.password : '';
+
+    if (!identifier.trim() || !password) {
       return NextResponse.json(
         {
           ok: false,
@@ -20,13 +34,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (identifier.length > 256 || password.length > 256) {
+      return NextResponse.json(
+        { ok: false, error: 'تجاوزت بيانات الدخول الطول المسموح.' },
+        { status: 400 }
+      );
+    }
+
     const ip =
-      request.headers.get('x-forwarded-for') ||
+      request.headers.get('cf-connecting-ip') ||
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
       request.headers.get('x-real-ip') ||
       'local-client';
-    const clientKey = `${ip}:${identifier.toLowerCase()}`;
+    const clientKeys = [
+      `ip:${ip}`,
+      `acct:${identifier.trim().toLowerCase()}`,
+    ];
 
-    const result = verifyServerCredentials(identifier, password, clientKey, {
+    const result = verifyServerCredentials(identifier, password, clientKeys, {
       name: typeof body.name === 'string' ? body.name : undefined,
       organizationOrUniversity:
         typeof body.organizationOrUniversity === 'string'
@@ -37,20 +62,29 @@ export async function POST(request: NextRequest) {
     if (!result.ok || !result.session) {
       return NextResponse.json(
         { ok: false, error: result.error || 'فشل تسجيل الدخول.' },
-        { status: 401 }
+        {
+          status: 401,
+          headers: { 'Cache-Control': 'no-store, max-age=0' },
+        }
       );
     }
 
     const isProd = process.env.NODE_ENV === 'production';
-    const response = NextResponse.json({
-      ok: true,
-      session: result.session,
-      redirectTo: result.redirectTo,
-    });
+    const response = NextResponse.json(
+      {
+        ok: true,
+        session: result.session,
+        redirectTo: result.redirectTo,
+      },
+      {
+        headers: { 'Cache-Control': 'no-store, max-age=0' },
+      }
+    );
 
     // Tamper-proof HMAC-SHA256 session token with full UTF-8 Arabic support
     const sessionPayload = {
       id: result.session.id,
+      email: result.session.email,
       role: result.session.role,
       username: result.session.username,
       name: result.session.name,
@@ -66,7 +100,7 @@ export async function POST(request: NextRequest) {
       maxAge: 60 * 60 * 24 * 7,
     });
 
-    // Client-readable role cookie for UI synchronization
+    // Client-readable role cookie for UI synchronization only
     response.cookies.set('seftlab_role', result.session.role, {
       httpOnly: false,
       secure: isProd,

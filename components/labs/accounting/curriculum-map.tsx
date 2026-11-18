@@ -27,7 +27,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface CurriculumMapProps {
-  onOpenUnit: (unitNumber: number) => void;
+  onOpenUnit: (unitNumber: number, exerciseId?: string | null) => void;
 }
 
 export function CurriculumMap({ onOpenUnit }: CurriculumMapProps) {
@@ -446,6 +446,12 @@ export function CurriculumMap({ onOpenUnit }: CurriculumMapProps) {
                         <span className="inline-flex items-center rounded-full bg-white px-2.5 py-0.5 font-tabular text-[11px] font-medium text-[#526077] dark:bg-[#0A1630] dark:text-[#94A3B8]">
                           {lesson.estimatedMinutes} دقائق
                         </span>
+                        {lesson.youtubeId && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 font-tabular text-[11px] font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                            <Play className="h-2.5 w-2.5 fill-current" />
+                            فيديو ({lesson.videoDuration || `${lesson.estimatedMinutes} د`})
+                          </span>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -556,6 +562,12 @@ export function CurriculumMap({ onOpenUnit }: CurriculumMapProps) {
                         <span className="inline-flex items-center rounded-full bg-white px-2.5 py-0.5 font-tabular text-[11px] font-medium text-[#526077] dark:bg-[#0A1630] dark:text-[#94A3B8]">
                           {lesson.estimatedMinutes} دقائق
                         </span>
+                        {lesson.youtubeId && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 font-tabular text-[11px] font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                            <Play className="h-2.5 w-2.5 fill-current" />
+                            فيديو ({lesson.videoDuration || `${lesson.estimatedMinutes} د`})
+                          </span>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -582,12 +594,7 @@ export function CurriculumMap({ onOpenUnit }: CurriculumMapProps) {
                   bypassedUnits,
                 });
                 const isExDone = (unit3CompletedLessons || []).includes(lesson.lessonNumber);
-                const highestDone =
-                  (unit3CompletedLessons || []).filter((n) => n >= 1).length > 0
-                    ? Math.max(...(unit3CompletedLessons || []).filter((n) => n >= 1))
-                    : 0;
-                const isUnlocked =
-                  u3Unlocked && (lesson.lessonNumber === 0 || lesson.lessonNumber <= highestDone + 1);
+                const isUnlocked = u3Unlocked && lesson.isAvailable;
                 const isCurrent =
                   u3Unlocked &&
                   !isExDone &&
@@ -612,7 +619,7 @@ export function CurriculumMap({ onOpenUnit }: CurriculumMapProps) {
                     key={lesson.id}
                     type="button"
                     disabled={!isUnlocked}
-                    onClick={() => onOpenUnit(3)}
+                    onClick={() => onOpenUnit(3, lesson.id)}
                     className={cn(
                       'group relative flex w-full items-start gap-3.5 rounded-[22px] border p-4 text-right transition-all',
                       isExDone
@@ -666,6 +673,12 @@ export function CurriculumMap({ onOpenUnit }: CurriculumMapProps) {
                         <span className="inline-flex items-center rounded-full bg-white px-2.5 py-0.5 font-tabular text-[11px] font-medium text-[#526077] dark:bg-[#0A1630] dark:text-[#94A3B8]">
                           {lesson.estimatedMinutes} دقائق
                         </span>
+                        {lesson.youtubeId && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 font-tabular text-[11px] font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                            <Play className="h-2.5 w-2.5 fill-current" />
+                            فيديو ({lesson.videoDuration || `${lesson.estimatedMinutes} د`})
+                          </span>
+                        )}
                       </div>
                     </div>
                   </button>

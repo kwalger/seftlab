@@ -11,6 +11,12 @@ import { gradeSubmissionByAssignment } from '@/lib/grading';
  * Clean service layer isolating UI components from the underlying data store.
  * Can be swapped with Prisma / REST API endpoints without changing page components.
  */
+export function sanitizeCsvCell(cell: unknown): string {
+  const raw = String(cell ?? '');
+  const neutralized = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+  return `"${neutralized.replace(/"/g, '""')}"`;
+}
+
 export const PlatformService = {
   generateClassJoinCode(courseCode: string, university: string): string {
     const cleanCode = courseCode
@@ -104,17 +110,20 @@ export const PlatformService = {
 
   exportRowsToCsv(filename: string, headers: string[], rows: string[][]) {
     if (typeof window === 'undefined') return;
+    const escapedHeaders = headers.map((h) => sanitizeCsvCell(h)).join(',');
     const escapedRows = rows.map((r) =>
-      r.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')
+      r.map((cell) => sanitizeCsvCell(cell)).join(',')
     );
     const csvContent =
-      '\uFEFF' + [headers.join(','), ...escapedRows].join('\n');
+      '\uFEFF' + [escapedHeaders, ...escapedRows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
   },
 };

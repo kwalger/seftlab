@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
   Award,
@@ -98,6 +98,23 @@ export function AccountingLabClient() {
   const [viewMode, setViewMode] = useState<LabViewMode>('map');
   const [activeUnitNum, setActiveUnitNum] = useState<number>(lastActiveUnit || 1);
   const [targetExerciseId, setTargetExerciseId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const unitParam = params.get('unit');
+    const lessonParam = params.get('lesson');
+    if (unitParam) {
+      const u = parseInt(unitParam, 10);
+      if (u >= 1 && u <= 8) {
+        setActiveUnitNum(u);
+        setViewMode('unit');
+        if (lessonParam) {
+          setTargetExerciseId(`u${u}-lesson-${lessonParam}`);
+        }
+      }
+    }
+  }, []);
 
   // حالة وضع اختبرني
   const combinedQuizBank = useMemo(

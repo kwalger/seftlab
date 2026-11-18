@@ -18,6 +18,8 @@ export interface LessonMeta {
   estimatedMinutes: number;
   isAvailable: boolean;
   quickQuizAfterId?: string;
+  youtubeId?: string;
+  videoDuration?: string;
 }
 
 export interface LessonExplanationCard {

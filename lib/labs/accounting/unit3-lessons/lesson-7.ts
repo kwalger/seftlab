@@ -4,7 +4,7 @@ export const lesson7: UnitLessonData = {
   id: 'u3-lesson-7',
   lessonNumber: 7,
   title: 'التعرف على ميزان المراجعة',
-  estimatedMinutes: 9,
+  estimatedMinutes: 7,
   xpReward: 50,
   openingQuestion: {
     question: 'كيف نطبق كل ما تعلمناه في الفصل الثالث لحل تمرينين حقيقيين من الكتاب المعتمد وتصنيف الحسابات واستخراج القوائم؟',

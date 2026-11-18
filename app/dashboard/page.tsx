@@ -6,19 +6,30 @@ import { useAppStore } from '@/store/use-app-store';
 
 export default function DashboardRedirectPage() {
   const router = useRouter();
-  const { user } = useAppStore();
+  const { user, hasHydrated } = useAppStore();
 
   useEffect(() => {
-    if (user?.role === 'company') {
+    if (!hasHydrated && !user) return;
+
+    const cookieRole =
+      typeof document !== 'undefined'
+        ? (document.cookie.match(/(?:^|;\s*)seftlab_role=([^;]+)/)?.[1] as string | undefined)
+        : undefined;
+
+    const effectiveRole = user?.role || cookieRole;
+
+    if (effectiveRole === 'company') {
       router.replace('/company');
-    } else if (user?.role === 'teacher') {
+    } else if (effectiveRole === 'teacher') {
       router.replace('/teacher');
-    } else if (user?.role === 'admin') {
+    } else if (effectiveRole === 'admin') {
       router.replace('/admin');
+    } else if (effectiveRole === 'student') {
+      router.replace('/student');
     } else {
       router.replace('/student');
     }
-  }, [user, router]);
+  }, [user, hasHydrated, router]);
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center text-sm text-[#526077]">

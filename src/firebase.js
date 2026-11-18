@@ -4,13 +4,13 @@ import { getFirestore } from "firebase/firestore";
 
 // إعدادات Firebase الخاصة بمنصة SEFT Lab
 const firebaseConfig = {
-  apiKey: "AIzaSyBa_B71uvrjeNOOrR0o7oZ7zgfmcENZJ8o",
-  authDomain: "seftlab.firebaseapp.com",
-  projectId: "seftlab",
-  storageBucket: "seftlab.firebasestorage.app",
-  messagingSenderId: "974517930241",
-  appId: "1:974517930241:web:c5fa65ead74bf8eb567300",
-  measurementId: "G-NWJ8N9RQK7",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "",
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "",
 };
 
 // تهيئة Firebase بأمان

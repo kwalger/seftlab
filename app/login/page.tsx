@@ -69,11 +69,6 @@ async function syncFirestoreUser(
       { merge: true }
     ).catch(() => {});
 
-    console.log('⚡ [Login] Super Admin instant authorization (0ms):', {
-      uid,
-      email,
-      role: 'admin',
-    });
     return { role: 'admin', name: adminName, photoURL: photoURL || '' };
   }
 
@@ -83,9 +78,9 @@ async function syncFirestoreUser(
 
   try {
     const userDocRef = doc(db, 'users', uid);
-    // مهلة سريعة جداً 1.2 ثانية لتجنب أي تعليق في الواجهة
+    // مهلة كافية 4 ثوانٍ لتجنب أي تعليق
     const timeout = new Promise<null>((_, reject) =>
-      setTimeout(() => reject(new Error('TIMEOUT')), 1200)
+      setTimeout(() => reject(new Error('TIMEOUT')), 4000)
     );
 
     let docSnap: any = await Promise.race([getDoc(userDocRef), timeout]).catch(() => null);
@@ -105,11 +100,11 @@ async function syncFirestoreUser(
     if (docSnap && docSnap.exists()) {
       const data = docSnap.data();
       const rawRole = (data.role as UserRole) || 'student';
-      role = resolveUserRole(email, rawRole);
+      role = resolveUserRole(email, rawRole, true);
       if (data.name || data.fullName) name = data.name || data.fullName;
       if (data.photoURL || data.avatarUrl) finalPhoto = data.photoURL || data.avatarUrl;
-    } else {
-      // إنشاء المستند في الخلفية
+    } else if (docSnap && !docSnap.exists() && !isSuper) {
+      // إنشاء المستند في الخلفية فقط إذا تأكدنا من عدم وجوده مسبقاً
       setDoc(userDocRef, {
         name,
         email: email || '',
@@ -121,12 +116,6 @@ async function syncFirestoreUser(
   } catch (err) {
     console.warn('Sync note:', err);
   }
-
-  console.log('🔑 [Login] User sync resolved:', {
-    uid,
-    email,
-    resolvedRole: role,
-  });
 
   return { role, name, photoURL: finalPhoto };
 }
@@ -144,12 +133,13 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // إكمال الجلسة والتوجيه بناءً على الرتبة
-  const completeSession = (
+  const completeSession = async (
     uid: string,
     email: string | null,
     name: string,
     role: UserRole,
-    photoURL?: string | null
+    photoURL?: string | null,
+    idToken?: string
   ) => {
     const isSuper = isSuperAdminEmail(email);
     const effectiveRole: UserRole = isSuper ? 'admin' : role;
@@ -161,14 +151,13 @@ export default function LoginPage() {
       document.cookie = `seftlab_email=${encodeURIComponent(email.toLowerCase().trim())}; path=/; max-age=604800; SameSite=Lax`;
     }
 
-    // إرسال طلب لمسار المزامنة في الـ Edge لإنشاء كوكي الجلسة الموقّع
-    if (typeof fetch !== 'undefined') {
-      fetch('/api/auth/sync-session', {
+    // إرسال طلب لمسار المزامنة في الـ Edge لإنشاء كوكي الجلسة الموقّع باستخدام Firebase ID Token
+    if (idToken && typeof fetch !== 'undefined') {
+      await fetch('/api/auth/sync-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          uid,
-          email: email || '',
+          idToken,
           name,
           role: effectiveRole,
         }),
@@ -223,10 +212,34 @@ export default function LoginPage() {
 
     setLoading(true);
 
+    // 0. التحقق من صلاحيات الأدمن المباشرة وحسابات النظام
+    const cleanId = email.toLowerCase();
+    if (cleanId === 'admin' || isSuperAdminEmail(cleanId) || !cleanId.includes('@')) {
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier: email, password }),
+        });
+        const data = await res.json();
+        if (data.ok && data.session) {
+          await completeSession(
+            data.session.id,
+            data.session.email,
+            data.session.name,
+            data.session.role,
+            data.session.avatarUrl
+          );
+          return;
+        }
+      } catch {}
+    }
+
     try {
       // التحقق الفعلي من الحساب
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
+      const idToken = await user.getIdToken();
 
       // فحص الدور
       const { role, name, photoURL } = await syncFirestoreUser(
@@ -236,7 +249,14 @@ export default function LoginPage() {
         user.photoURL
       );
 
-      completeSession(user.uid, user.email, name, role, photoURL || user.photoURL);
+      await completeSession(
+        user.uid,
+        user.email,
+        name,
+        role,
+        photoURL || user.photoURL,
+        idToken
+      );
     } catch (err: unknown) {
       triggerHaptic('error');
       const authError = err as { code?: string; message?: string };
@@ -282,6 +302,7 @@ export default function LoginPage() {
       // فتح نافذة Google الرسمية وتسجيل الدخول
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
+      const idToken = await user.getIdToken();
 
       // فحص وثيقة المستخدم
       const { role, name, photoURL } = await syncFirestoreUser(
@@ -291,7 +312,14 @@ export default function LoginPage() {
         user.photoURL
       );
 
-      completeSession(user.uid, user.email, name, role, photoURL || user.photoURL);
+      await completeSession(
+        user.uid,
+        user.email,
+        name,
+        role,
+        photoURL || user.photoURL,
+        idToken
+      );
     } catch (err: unknown) {
       triggerHaptic('error');
       const authError = err as { code?: string; message?: string };

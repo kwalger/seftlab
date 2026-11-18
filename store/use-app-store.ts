@@ -354,6 +354,14 @@ export const useAppStore = create<AppState>()(
       },
 
       switchRole: (role) => {
+        const currentUser = get().user;
+        if (
+          process.env.NODE_ENV === 'production' &&
+          role === 'admin' &&
+          !isSuperAdminEmail(currentUser?.email)
+        ) {
+          return;
+        }
         const nextUser =
           role === 'company'
             ? DEMO_COMPANY_USER

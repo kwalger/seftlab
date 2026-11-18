@@ -12,46 +12,70 @@ interface ServerAuthRecord {
   approvalStatus: 'approved' | 'pending' | 'rejected';
 }
 
-export const DOCTOR_DEFAULT_PASSWORD = 'k9#mP2$vL8@qR4!zX7&';
 export const DOCTOR_EMAIL_REGEX = /^dr(\d*)@seftlab\.com$/i;
 
-// Pre-computed bcrypt hashes for mock accounts (never stored as plaintext)
-const STUDENT_HASH = bcrypt.hashSync('password123', 10);
-const TEACHER_HASH = bcrypt.hashSync(DOCTOR_DEFAULT_PASSWORD, 10);
-const COMPANY_HASH = bcrypt.hashSync('company123', 10);
+function isDemoAccountsEnabled(): boolean {
+  return process.env.ENABLE_DEMO_ACCOUNTS === 'true';
+}
 
-const MOCK_AUTH_USERS: ServerAuthRecord[] = [
-  {
-    id: 'usr-student-1',
-    username: 'yazan-nabulsi',
-    email: 'yazan@students.ju.edu.jo',
-    name: 'يزن النابلسي',
-    role: 'student',
-    organizationOrUniversity: 'الجامعة الأردنية',
-    passwordHash: STUDENT_HASH,
-    approvalStatus: 'approved',
-  },
-  {
-    id: 'usr-teacher-1',
-    username: 'dr',
-    email: 'dr@seftlab.com',
-    name: 'د. أحمد خليل العساف',
-    role: 'teacher',
-    organizationOrUniversity: 'الجامعة الأردنية — كلية الأعمال وتقنية المعلومات',
-    passwordHash: TEACHER_HASH,
-    approvalStatus: 'approved',
-  },
-  {
-    id: 'usr-company-1',
-    username: 'futuretech-hr',
-    email: 'talent@futuretech.jo',
-    name: 'سارة الخطيب',
-    role: 'company',
-    organizationOrUniversity: 'شركة تقنية المستقبل',
-    passwordHash: COMPANY_HASH,
-    approvalStatus: 'approved',
-  },
-];
+function getMockAuthUsers(): ServerAuthRecord[] {
+  if (!isDemoAccountsEnabled()) {
+    return [];
+  }
+
+  const demoUsers: ServerAuthRecord[] = [];
+  const studentHash = (process.env.DEMO_STUDENT_PASSWORD_HASH || '').trim();
+  const teacherHash = (process.env.DEMO_TEACHER_PASSWORD_HASH || '').trim();
+  const companyHash = (process.env.DEMO_COMPANY_PASSWORD_HASH || '').trim();
+
+  if (studentHash) {
+    demoUsers.push({
+      id: 'usr-student-1',
+      username: 'yazan-nabulsi',
+      email: 'yazan@students.ju.edu.jo',
+      name: 'يزن النابلسي',
+      role: 'student',
+      organizationOrUniversity: 'الجامعة الأردنية',
+      passwordHash: studentHash,
+      approvalStatus: 'approved',
+    });
+  }
+
+  if (teacherHash) {
+    demoUsers.push({
+      id: 'usr-teacher-1',
+      username: 'dr',
+      email: 'dr@seftlab.com',
+      name: 'د. أحمد خليل العساف',
+      role: 'teacher',
+      organizationOrUniversity: 'الجامعة الأردنية — كلية الأعمال وتقنية المعلومات',
+      passwordHash: teacherHash,
+      approvalStatus: 'approved',
+    });
+  }
+
+  if (companyHash) {
+    demoUsers.push({
+      id: 'usr-company-1',
+      username: 'futuretech-hr',
+      email: 'talent@futuretech.jo',
+      name: 'سارة الخطيب',
+      role: 'company',
+      organizationOrUniversity: 'شركة تقنية المستقبل',
+      passwordHash: companyHash,
+      approvalStatus: 'approved',
+    });
+  }
+
+  return demoUsers;
+}
+
+function sanitizeMetaField(val?: string, maxLen = 100): string | undefined {
+  if (typeof val !== 'string') return undefined;
+  const cleaned = val.replace(/[\x00-\x1F\x7F]/g, '').trim();
+  if (!cleaned) return undefined;
+  return cleaned.slice(0, maxLen);
+}
 
 // Rate limiter state (in-memory per edge isolate / server instance).
 // Note: On Cloudflare Pages Edge Runtime, isolates are distributed and ephemeral.
@@ -67,6 +91,20 @@ const rateLimitMap = new Map<string, RateLimitBucket>();
 const MAX_FAILED_ATTEMPTS = 5;
 const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 const LOCKOUT_MS = 10 * 60 * 1000; // 10 minutes
+const MAX_RATE_LIMIT_ENTRIES = 5000;
+
+function pruneRateLimitMap(now: number) {
+  for (const [k, bucket] of rateLimitMap.entries()) {
+    if (bucket.lockedUntil <= now && now - bucket.firstFailedAt > WINDOW_MS) {
+      rateLimitMap.delete(k);
+    }
+  }
+  while (rateLimitMap.size >= MAX_RATE_LIMIT_ENTRIES) {
+    const oldestKey = rateLimitMap.keys().next().value;
+    if (oldestKey === undefined) break;
+    rateLimitMap.delete(oldestKey);
+  }
+}
 
 export function checkRateLimit(key: string): {
   allowed: boolean;
@@ -111,6 +149,9 @@ export function recordFailedAttempt(key: string) {
   const now = Date.now();
   const existing = rateLimitMap.get(key);
   if (!existing || now - existing.firstFailedAt > WINDOW_MS) {
+    if (!existing) {
+      pruneRateLimitMap(now);
+    }
     rateLimitMap.set(key, {
       failedCount: 1,
       firstFailedAt: now,
@@ -148,7 +189,7 @@ export function getRoleHomeRoute(role: UserRole): string {
 export function verifyServerCredentials(
   identifierRaw: string,
   password: string,
-  clientKey: string,
+  clientKey: string | string[],
   meta?: { name?: string; organizationOrUniversity?: string }
 ): {
   ok: boolean;
@@ -156,65 +197,61 @@ export function verifyServerCredentials(
   session?: UserSession;
   redirectTo?: string;
 } {
-  const rateCheck = checkRateLimit(clientKey);
-  if (!rateCheck.allowed) {
+  const rateKeys = Array.isArray(clientKey) ? clientKey : [clientKey];
+  let maxRetryAfter = 0;
+  for (const key of rateKeys) {
+    const rateCheck = checkRateLimit(key);
+    if (!rateCheck.allowed) {
+      maxRetryAfter = Math.max(maxRetryAfter, rateCheck.retryAfterSeconds);
+    }
+  }
+  if (maxRetryAfter > 0) {
     return {
       ok: false,
-      error: `تم تجاوز الحد المسموح لمحاولات الدخول الفاشلة. يرجى الانتظار ${rateCheck.retryAfterSeconds} ثانية قبل المحاولة مجدداً.`,
+      error: `تم تجاوز الحد المسموح لمحاولات الدخول الفاشلة. يرجى الانتظار ${maxRetryAfter} ثانية قبل المحاولة مجدداً.`,
     };
   }
+
+  const recordAllFailed = () => {
+    for (const key of rateKeys) {
+      recordFailedAttempt(key);
+    }
+  };
+
+  const clearAllLimits = () => {
+    for (const key of rateKeys) {
+      clearRateLimit(key);
+    }
+  };
 
   const identifier = identifierRaw.trim().toLowerCase();
 
   // =========================================================
-  // ADMIN AUTHENTICATION (SERVER-SIDE ONLY)
+  // ADMIN AUTHENTICATION (SERVER-SIDE ONLY VIA ENV VARS)
   // =========================================================
-  if (process.env.NODE_ENV === 'development') {
-    // DEV ONLY — WARNING: This development fallback ("admin" / "user") is strictly
-    // restricted to NODE_ENV === "development" and is never active in production builds.
-    if (identifier === 'admin' && password === 'user') {
-      clearRateLimit(clientKey);
-      const adminSession: UserSession = {
-        id: 'usr-admin-root',
-        name: 'مدير النظام العام',
-        username: 'admin',
-        email: 'admin@seftlab.com',
-        role: 'admin',
-        organizationOrUniversity: 'إدارة منصة SEFT Lab',
-        approvalStatus: 'approved',
-      };
-      return {
-        ok: true,
-        session: adminSession,
-        redirectTo: '/admin',
-      };
-    }
-  } else {
-    // PRODUCTION ONLY: Read admin username and bcrypt hash strictly from server env vars
-    const prodAdminUser = (process.env.ADMIN_USERNAME || '').trim().toLowerCase();
-    const prodAdminHash = process.env.ADMIN_PASSWORD_HASH || '';
-    if (
-      prodAdminUser &&
-      prodAdminHash &&
-      identifier === prodAdminUser &&
-      bcrypt.compareSync(password, prodAdminHash)
-    ) {
-      clearRateLimit(clientKey);
-      const adminSession: UserSession = {
-        id: 'usr-admin-root',
-        name: 'مدير النظام العام',
-        username: prodAdminUser,
-        email: 'admin@seftlab.com',
-        role: 'admin',
-        organizationOrUniversity: 'إدارة منصة SEFT Lab',
-        approvalStatus: 'approved',
-      };
-      return {
-        ok: true,
-        session: adminSession,
-        redirectTo: '/admin',
-      };
-    }
+  const adminUser = (process.env.ADMIN_USERNAME || '').trim().toLowerCase();
+  const adminPasswordHash = (process.env.ADMIN_PASSWORD_HASH || '').trim();
+  if (
+    adminUser &&
+    adminPasswordHash &&
+    identifier === adminUser &&
+    bcrypt.compareSync(password, adminPasswordHash)
+  ) {
+    clearAllLimits();
+    const adminSession: UserSession = {
+      id: 'usr-admin-root',
+      name: 'مدير النظام العام',
+      username: adminUser,
+      email: 'admin@seftlab.com',
+      role: 'admin',
+      organizationOrUniversity: 'إدارة منصة SEFT Lab',
+      approvalStatus: 'approved',
+    };
+    return {
+      ok: true,
+      session: adminSession,
+      redirectTo: '/admin',
+    };
   }
 
   // =========================================================
@@ -222,9 +259,10 @@ export function verifyServerCredentials(
   // =========================================================
   const doctorMatch = identifier.match(DOCTOR_EMAIL_REGEX);
   if (doctorMatch) {
-    const passwordValid = bcrypt.compareSync(password, TEACHER_HASH);
-    if (!passwordValid) {
-      recordFailedAttempt(clientKey);
+    const doctorHash = (process.env.DOCTOR_PASSWORD_HASH || '').trim();
+
+    if (!doctorHash || !bcrypt.compareSync(password, doctorHash)) {
+      recordAllFailed();
       return {
         ok: false,
         error: 'البريد الإلكتروني أو كلمة المرور الخاصة بحساب الدكتور غير صحيحة.',
@@ -232,10 +270,10 @@ export function verifyServerCredentials(
     }
 
     const suffix = doctorMatch[1] || '';
-    const customName = meta?.name?.trim();
-    const customOrg = meta?.organizationOrUniversity?.trim();
+    const customName = sanitizeMetaField(meta?.name, 100);
+    const customOrg = sanitizeMetaField(meta?.organizationOrUniversity, 150);
 
-    clearRateLimit(clientKey);
+    clearAllLimits();
     const doctorSession: UserSession = {
       id: suffix ? `usr-teacher-${suffix}` : 'usr-teacher-1',
       name:
@@ -257,7 +295,7 @@ export function verifyServerCredentials(
   }
 
   if (/^dr.*@seftlab\.com$/i.test(identifier)) {
-    recordFailedAttempt(clientKey);
+    recordAllFailed();
     return {
       ok: false,
       error:
@@ -268,14 +306,14 @@ export function verifyServerCredentials(
   // =========================================================
   // STANDARD USER ROLES (student, teacher, company)
   // =========================================================
-  const matchedUser = MOCK_AUTH_USERS.find(
+  const matchedUser = getMockAuthUsers().find(
     (u) =>
       u.email.toLowerCase() === identifier ||
       u.username.toLowerCase() === identifier
   );
 
   if (!matchedUser) {
-    recordFailedAttempt(clientKey);
+    recordAllFailed();
     return {
       ok: false,
       error: 'البريد الإلكتروني أو اسم المستخدم أو كلمة المرور غير صحيحة.',
@@ -284,7 +322,7 @@ export function verifyServerCredentials(
 
   const passwordValid = bcrypt.compareSync(password, matchedUser.passwordHash);
   if (!passwordValid) {
-    recordFailedAttempt(clientKey);
+    recordAllFailed();
     return {
       ok: false,
       error: 'البريد الإلكتروني أو اسم المستخدم أو كلمة المرور غير صحيحة.',
@@ -298,7 +336,7 @@ export function verifyServerCredentials(
     };
   }
 
-  clearRateLimit(clientKey);
+  clearAllLimits();
   const session: UserSession = {
     id: matchedUser.id,
     name: matchedUser.name,

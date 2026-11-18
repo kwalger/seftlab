@@ -6,7 +6,7 @@ import { Search, ArrowUpLeft, SlidersHorizontal } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { UNIVERSITIES, MAJORS, LABS_METADATA } from '@/data/mock-data';
 import { calculateSkillLevelFromXp } from '@/lib/labs/skill-calculator';
-import { getBreadcrumbJsonLd } from '@/lib/seo/json-ld';
+import { getBreadcrumbJsonLd, safeJsonLdStringify } from '@/lib/seo/json-ld';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,7 +68,7 @@ export default function LeaderboardPage() {
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-14 lg:px-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(breadcrumbJsonLd) }}
       />
 
       {/* Editorial Header */}

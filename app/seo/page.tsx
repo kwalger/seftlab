@@ -1,12 +1,25 @@
 import type { Metadata } from 'next';
 import { LegalArticle, LegalShell } from '@/components/legal/legal-shell';
 import { SeoHubClient } from '@/components/seo/seo-hub-client';
+import { safeJsonLdStringify } from '@/lib/seo/json-ld';
 import {
   FOUNDER_NAME,
   FOUNDER_TITLE,
 } from '@/components/legal/founder-portrait';
 
-const baseUrl = process.env.APP_URL || 'https://seftlab.com';
+const getValidBaseUrl = () => {
+  const envUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL;
+  if (envUrl) {
+    try {
+      return new URL(envUrl).toString();
+    } catch {
+      // fallback
+    }
+  }
+  return 'https://seftlab.com';
+};
+
+const baseUrl = getValidBaseUrl();
 
 export const metadata: Metadata = {
   title: 'مركز تصدر محركات البحث والأرشفة الذكية (SEO)',
@@ -88,7 +101,7 @@ export default function SeoHubPage() {
     >
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(seoGraphJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(seoGraphJsonLd) }}
       />
 
       <SeoHubClient baseUrl={baseUrl} />

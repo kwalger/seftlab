@@ -1,8 +1,15 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext", "webworker"],
-    "types": ["@serwist/next/typings"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext",
+      "webworker"
+    ],
+    "types": [
+      "@serwist/next/typings"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -13,7 +20,7 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
     "plugins": [
       {
@@ -22,9 +29,21 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "public/sw.js", "public/swe-worker-*.js"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "public/sw.js",
+    "public/swe-worker-*.js"
+  ]
 }

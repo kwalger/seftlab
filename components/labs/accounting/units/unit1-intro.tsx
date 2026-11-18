@@ -85,7 +85,7 @@ export default function Unit1Intro({
       !unit1CompletedQuizzes.includes(quiz.id)
   );
 
-  const [mode, setMode] = useState<Unit1ScreenMode>('home');
+  const [mode, setMode] = useState<Unit1ScreenMode>('map');
   const [activeLessonNum, setActiveLessonNum] =
     useState<number>(resumeLessonNum);
   const [loadedLesson, setLoadedLesson] = useState<UnitLessonData | null>(null);
@@ -259,7 +259,7 @@ export default function Unit1Intro({
         <div className="flex items-center justify-between">
           <button
             type="button"
-            onClick={() => setMode('home')}
+            onClick={() => setMode('map')}
             className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full px-3 text-sm font-bold text-[#475569] hover:bg-[#F1F5F9] dark:text-[#94A3B8]"
           >
             <ArrowRight className="h-4 w-4 stroke-[1.75]" />
@@ -341,7 +341,10 @@ export default function Unit1Intro({
         isFinalLesson={loadedLesson.lessonNumber === 12}
         onStepChange={setUnit1Position}
         onCompleteLesson={handleCompleteLesson}
-        onBackToUnit={() => setMode('home')}
+        onBackToUnit={() => {
+          setMode('map');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
       />
     );
   }
@@ -360,7 +363,7 @@ export default function Unit1Intro({
         <div className="flex items-center justify-between">
           <button
             type="button"
-            onClick={() => setMode('home')}
+            onClick={() => setMode('map')}
             className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full px-3 text-sm font-bold text-[#475569] hover:bg-[#F1F5F9] dark:text-[#94A3B8]"
           >
             <ArrowRight className="h-4 w-4 stroke-[1.75]" />
@@ -754,11 +757,11 @@ export default function Unit1Intro({
         <div className="flex items-center justify-between">
           <button
             type="button"
-            onClick={() => setMode('home')}
+            onClick={onBackToMap}
             className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full px-3 text-sm font-bold text-[#475569] hover:bg-[#F1F5F9] dark:text-[#94A3B8]"
           >
             <ArrowRight className="h-4 w-4 stroke-[1.75]" />
-            <span>العودة لصفحة الوحدة</span>
+            <span>العودة لخريطة المنهاج</span>
           </button>
           <span className="font-tabular text-sm font-bold text-[#2F6BFF]">
             {completedGradedLessons.length} / {gradedLessonsCount} مكتمل

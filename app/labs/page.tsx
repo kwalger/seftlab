@@ -19,7 +19,11 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { LABS_METADATA } from '@/data/mock-data';
-import { getCourseJsonLd, getBreadcrumbJsonLd } from '@/lib/seo/json-ld';
+import {
+  getCourseJsonLd,
+  getBreadcrumbJsonLd,
+  safeJsonLdStringify,
+} from '@/lib/seo/json-ld';
 import {
   AccountingScalePreview,
   MarketingGrowthPreview,
@@ -122,7 +126,7 @@ export default function LabsCatalogPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify([breadcrumbJsonLd, ...coursesJsonLd]),
+          __html: safeJsonLdStringify([breadcrumbJsonLd, ...coursesJsonLd]),
         }}
       />
       <div aria-hidden="true" className="bg-grid-faint pointer-events-none absolute inset-x-0 top-0 h-[520px]" />

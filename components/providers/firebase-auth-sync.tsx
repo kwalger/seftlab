@@ -22,7 +22,6 @@ export function FirebaseAuthSync() {
           fbUser.displayName ||
           (userEmail ? userEmail.split('@')[0] : 'مستخدم منصة SEFT Lab');
         let photo = fbUser.photoURL || '';
-        let foundMethod = isSuperAdmin ? 'superadmin_hardcoded' : 'default_student';
 
         // إذا كان المستخدم سوبر أدمن، يُفعّل فوراً بدون أي تأخير
         if (isSuperAdmin) {
@@ -40,7 +39,7 @@ export function FirebaseAuthSync() {
         } else {
           try {
             const timeout = new Promise<null>((_, reject) =>
-              setTimeout(() => reject(new Error('TIMEOUT')), 1200)
+              setTimeout(() => reject(new Error('TIMEOUT')), 4000)
             );
 
             // 1. استعلام بالـ UID
@@ -54,7 +53,6 @@ export function FirebaseAuthSync() {
 
             if (snap && typeof snap.exists === 'function' && snap.exists()) {
               docData = snap.data();
-              foundMethod = 'doc_by_uid';
             } else if (userEmail) {
               try {
                 const q = query(collection(db, 'users'), where('email', '==', userEmail));
@@ -64,7 +62,6 @@ export function FirebaseAuthSync() {
                 ])) as any;
                 if (qSnap && !qSnap.empty) {
                   docData = qSnap.docs[0].data();
-                  foundMethod = 'query_where_email';
                 }
               } catch {}
             }
@@ -73,7 +70,7 @@ export function FirebaseAuthSync() {
               if (docData.name) name = docData.name;
               if (docData.photoURL) photo = docData.photoURL;
               if (docData.role) {
-                role = resolveUserRole(userEmail, docData.role);
+                role = resolveUserRole(userEmail, docData.role, true);
               }
             } else {
               setDoc(uidDocRef, {
@@ -89,17 +86,6 @@ export function FirebaseAuthSync() {
           }
         }
 
-        // Detailed console diagnostics requested by user
-        console.log('🔑 [FirebaseAuthSync] User Authenticated:', {
-          uid: fbUser.uid,
-          email: userEmail,
-          displayName: name,
-          resolvedRole: role,
-          isSuperAdmin: isSuperAdmin,
-          discoveryMethod: foundMethod,
-          timestamp: new Date().toISOString(),
-        });
-
         // Set cookies locally for immediate client navigation
         if (typeof document !== 'undefined') {
           document.cookie = `seftlab_role=${role}; path=/; max-age=604800; SameSite=Lax`;
@@ -107,16 +93,16 @@ export function FirebaseAuthSync() {
           document.cookie = `seftlab_email=${encodeURIComponent(userEmail)}; path=/; max-age=604800; SameSite=Lax`;
         }
 
-        // Sync signed session cookie to server via Edge API route
+        // Sync signed session cookie to server via Edge API route using verified Firebase ID Token
         try {
+          const idToken = await fbUser.getIdToken();
           fetch('/api/auth/sync-session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              uid: fbUser.uid,
-              email: userEmail,
-              name: name,
-              role: role,
+              idToken,
+              name,
+              role,
             }),
           }).catch((e) => console.warn('[FirebaseAuthSync] sync-session fetch error:', e));
         } catch {}

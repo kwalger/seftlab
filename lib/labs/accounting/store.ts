@@ -508,7 +508,8 @@ export function isUnitUnlocked(params: {
     (u) => u.unitNumber === params.unitNumber
   );
   if (!unitMeta || !unitMeta.isImplementedInPhase1) return false;
-  if (params.unitNumber === 1) return true;
+  // الوحدات 1 و 2 و 3 مفعلة ومتاحة بالكامل
+  if (params.unitNumber <= 3) return true;
   if (params.bypassedUnits.includes(params.unitNumber)) return true;
 
   const prevStats = getUnitCompletionStats(

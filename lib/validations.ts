@@ -24,6 +24,17 @@ export const registerFormSchema = z.object({
 
 export type RegisterFormValues = z.infer<typeof registerFormSchema>;
 
+export function isSafeHttpUrl(val?: string): boolean {
+  const trimmed = val?.trim();
+  if (!trimmed) return true;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 export const studentProfileSchema = z.object({
   fullName: z.string().min(3, { message: 'الاسم الكامل مطلوب' }),
   university: z.string().min(2, { message: 'اسم الجامعة مطلوب' }),
@@ -32,8 +43,18 @@ export const studentProfileSchema = z.object({
   city: z.string().min(2, { message: 'المدينة مطلوبة' }),
   bio: z.string().min(20, { message: 'النبذة التعريفية يجب أن تكون 20 حرفاً على الأقل' }),
   educationDetails: z.string().min(10, { message: 'تفاصيل التعليم مطلوبة' }),
-  githubOrPortfolio: z.string().optional(),
-  linkedinUrl: z.string().optional(),
+  githubOrPortfolio: z
+    .string()
+    .optional()
+    .refine(isSafeHttpUrl, {
+      message: 'يجب أن يبدأ الرابط بـ https:// أو http://',
+    }),
+  linkedinUrl: z
+    .string()
+    .optional()
+    .refine(isSafeHttpUrl, {
+      message: 'يجب أن يبدأ الرابط بـ https:// أو http://',
+    }),
 });
 
 export type StudentProfileFormValues = z.infer<typeof studentProfileSchema>;

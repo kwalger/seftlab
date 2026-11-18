@@ -8,7 +8,7 @@ import {
   Scale,
   ShieldCheck,
 } from 'lucide-react';
-import { getBreadcrumbJsonLd } from '@/lib/seo/json-ld';
+import { getBreadcrumbJsonLd, safeJsonLdStringify } from '@/lib/seo/json-ld';
 import { cn } from '@/lib/utils';
 import {
   FOUNDER_ENGLISH_TITLE,
@@ -58,7 +58,7 @@ export function LegalShell({
     <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 md:py-12 lg:px-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(breadcrumbJsonLd) }}
       />
 
       {/* Breadcrumbs */}

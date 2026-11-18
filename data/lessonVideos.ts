@@ -430,16 +430,135 @@ export const LESSON_VIDEOS: Record<string, LessonVideoConfig> = {
   },
   'u3-lesson-1': {
     lessonId: 'u3-lesson-1',
-    title: 'مقدمة الدورة المستندية والدفاتر',
-    url: '',
+    title: 'معرفة الطرف المدين والطرف الدائن للقيد المحاسبي',
+    url: 'https://youtu.be/57aglBnQ6yA',
+    showBeforeTimestamps: true,
+    file: {
+      sources: [{ src: '', label: '720p' }],
+      poster: 'https://img.youtube.com/vi/57aglBnQ6yA/hqdefault.jpg',
+    },
     video: {
       provider: 'youtube',
-      id: ACCOUNTING_OVERVIEW_YOUTUBE_ID,
-      title: ACCOUNTING_OVERVIEW_TITLE,
+      id: '57aglBnQ6yA',
+      title: 'معرفة الطرف المدين والطرف الدائن للقيد المحاسبي',
+      start: null,
+      end: null,
+      chapterNumber: 1,
+      chapterTitle: 'معرفة الطرف المدين والطرف الدائن للقيد المحاسبي',
+    },
+  },
+  'u3-lesson-2': {
+    lessonId: 'u3-lesson-2',
+    title: 'كيفية تسجيل العمليات وعمل قيود اليومية',
+    url: 'https://youtu.be/8T6Z7Cv7J6E',
+    showBeforeTimestamps: true,
+    file: {
+      sources: [{ src: '', label: '720p' }],
+      poster: 'https://img.youtube.com/vi/8T6Z7Cv7J6E/hqdefault.jpg',
+    },
+    video: {
+      provider: 'youtube',
+      id: '8T6Z7Cv7J6E',
+      title: 'كيفية تسجيل العمليات وعمل قيود اليومية',
+      start: null,
+      end: null,
+      chapterNumber: 2,
+      chapterTitle: 'كيفية تسجيل العمليات وعمل قيود اليومية',
+    },
+  },
+  'u3-lesson-3': {
+    lessonId: 'u3-lesson-3',
+    title: 'معرفة دفتر اليومية وتقسيماته',
+    url: 'https://youtu.be/0Rt_e6IPjR4',
+    showBeforeTimestamps: true,
+    file: {
+      sources: [{ src: '', label: '720p' }],
+      poster: 'https://img.youtube.com/vi/0Rt_e6IPjR4/hqdefault.jpg',
+    },
+    video: {
+      provider: 'youtube',
+      id: '0Rt_e6IPjR4',
+      title: 'معرفة دفتر اليومية وتقسيماته',
+      start: null,
+      end: null,
+      chapterNumber: 3,
+      chapterTitle: 'معرفة دفتر اليومية وتقسيماته',
+    },
+  },
+  'u3-lesson-4': {
+    lessonId: 'u3-lesson-4',
+    title: 'التعرف على دفتر الأستاذ وتقسيماته',
+    url: 'https://youtu.be/GbeuyFctRT8',
+    showBeforeTimestamps: true,
+    file: {
+      sources: [{ src: '', label: '720p' }],
+      poster: 'https://img.youtube.com/vi/GbeuyFctRT8/hqdefault.jpg',
+    },
+    video: {
+      provider: 'youtube',
+      id: 'GbeuyFctRT8',
+      title: 'التعرف على دفتر الأستاذ وتقسيماته',
+      start: null,
+      end: null,
+      chapterNumber: 4,
+      chapterTitle: 'التعرف على دفتر الأستاذ وتقسيماته',
+    },
+  },
+  'u3-lesson-5': {
+    lessonId: 'u3-lesson-5',
+    title: 'كيفية الترحيل إلى دفتر الأستاذ',
+    url: 'https://youtu.be/w9HXLrLtSqA',
+    showBeforeTimestamps: true,
+    file: {
+      sources: [{ src: '', label: '720p' }],
+      poster: 'https://img.youtube.com/vi/w9HXLrLtSqA/hqdefault.jpg',
+    },
+    video: {
+      provider: 'youtube',
+      id: 'w9HXLrLtSqA',
+      title: 'كيفية الترحيل إلى دفتر الأستاذ',
       start: null,
       end: null,
       chapterNumber: 5,
-      chapterTitle: 'الدورة المستندية والدفاتر',
+      chapterTitle: 'كيفية الترحيل إلى دفتر الأستاذ',
+    },
+  },
+  'u3-lesson-6': {
+    lessonId: 'u3-lesson-6',
+    title: 'كيفية الترصيد واستخراج أرصدة الحسابات',
+    url: 'https://youtu.be/b64B94fD3UU',
+    showBeforeTimestamps: true,
+    file: {
+      sources: [{ src: '', label: '720p' }],
+      poster: 'https://img.youtube.com/vi/b64B94fD3UU/hqdefault.jpg',
+    },
+    video: {
+      provider: 'youtube',
+      id: 'b64B94fD3UU',
+      title: 'كيفية الترصيد واستخراج أرصدة الحسابات',
+      start: null,
+      end: null,
+      chapterNumber: 6,
+      chapterTitle: 'كيفية الترصيد واستخراج أرصدة الحسابات',
+    },
+  },
+  'u3-lesson-7': {
+    lessonId: 'u3-lesson-7',
+    title: 'التعرف على ميزان المراجعة',
+    url: 'https://youtu.be/WXgUFjPk-Ug',
+    showBeforeTimestamps: true,
+    file: {
+      sources: [{ src: '', label: '720p' }],
+      poster: 'https://img.youtube.com/vi/WXgUFjPk-Ug/hqdefault.jpg',
+    },
+    video: {
+      provider: 'youtube',
+      id: 'WXgUFjPk-Ug',
+      title: 'التعرف على ميزان المراجعة',
+      start: null,
+      end: null,
+      chapterNumber: 7,
+      chapterTitle: 'التعرف على ميزان المراجعة',
     },
   },
 };
@@ -447,6 +566,20 @@ export const LESSON_VIDEOS: Record<string, LessonVideoConfig> = {
 export const VIDEO_OVERRIDES_STORAGE_KEY = 'seftlab-lesson-video-overrides-v1';
 export const VIDEO_REQUIRE_WATCH_STORAGE_KEY =
   'seftlab-require-video-watch-v1';
+
+export function isSafeMediaUrl(url: string): boolean {
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
+    return true;
+  }
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
 
 export function extractYoutubeId(input: string): string | null {
   const trimmed = input.trim();
@@ -483,6 +616,17 @@ export function resolveVideoConfigFromRawUrl(
             start: null,
             end: null,
           },
+    };
+  }
+  if (!isSafeMediaUrl(cleaned)) {
+    return {
+      ...base,
+      provider: undefined,
+      url: '',
+      hlsUrl: undefined,
+      youtubeId: undefined,
+      file: undefined,
+      video: undefined,
     };
   }
   if (/\.m3u8($|\?)/i.test(cleaned)) {
@@ -556,9 +700,28 @@ export function getResolvedLessonVideo(lessonId: string): LessonVideoConfig {
 
   // الأولوية للملف الخاص (MP4 أو HLS) متى ما وُجد رابط غير فارغ
   const validFileSources = (base.file?.sources || []).filter((s) =>
-    Boolean(s.src && s.src.trim())
+    Boolean(s.src && s.src.trim() && isSafeMediaUrl(s.src))
   );
-  const fileHlsUrl = base.file?.hlsUrl?.trim();
+  const rawFileHlsUrl = base.file?.hlsUrl?.trim();
+  const fileHlsUrl =
+    rawFileHlsUrl && isSafeMediaUrl(rawFileHlsUrl) ? rawFileHlsUrl : '';
+  const safeBaseHlsUrl =
+    base.hlsUrl && isSafeMediaUrl(base.hlsUrl) ? base.hlsUrl.trim() : undefined;
+  const safeFilePoster =
+    base.file?.poster && isSafeMediaUrl(base.file.poster)
+      ? base.file.poster.trim()
+      : undefined;
+  const safeBasePoster =
+    base.poster && isSafeMediaUrl(base.poster) ? base.poster.trim() : undefined;
+  const safeFileSubtitles =
+    base.file?.subtitlesUrl && isSafeMediaUrl(base.file.subtitlesUrl)
+      ? base.file.subtitlesUrl.trim()
+      : undefined;
+  const safeBaseSubtitles =
+    base.subtitlesUrl && isSafeMediaUrl(base.subtitlesUrl)
+      ? base.subtitlesUrl.trim()
+      : undefined;
+
   if (validFileSources.length > 0 || fileHlsUrl) {
     const primaryUrl = validFileSources[0]?.src.trim() || '';
     return {
@@ -578,24 +741,29 @@ export function getResolvedLessonVideo(lessonId: string): LessonVideoConfig {
           label: s.label,
         })),
         hlsUrl: fileHlsUrl || undefined,
-        poster: base.file?.poster?.trim() || undefined,
-        subtitlesUrl: base.file?.subtitlesUrl?.trim() || undefined,
+        poster: safeFilePoster,
+        subtitlesUrl: safeFileSubtitles,
         subtitlesLabel: base.file?.subtitlesLabel,
       },
-      hlsUrl: fileHlsUrl || base.hlsUrl,
-      poster: base.file?.poster?.trim() || base.poster,
-      subtitlesUrl: base.file?.subtitlesUrl?.trim() || base.subtitlesUrl,
+      hlsUrl: fileHlsUrl || safeBaseHlsUrl,
+      poster: safeFilePoster || safeBasePoster,
+      subtitlesUrl: safeFileSubtitles || safeBaseSubtitles,
       subtitlesLabel: base.file?.subtitlesLabel || base.subtitlesLabel,
       youtubeId: undefined,
     };
   }
 
-  if (base.url || base.hlsUrl || (base.sources && base.sources.length > 0)) {
+  if (base.url || safeBaseHlsUrl || (base.sources && base.sources.length > 0)) {
     if (base.url) {
       return resolveVideoConfigFromRawUrl(base, base.url);
     }
+    const safeSources = (base.sources || []).filter((s) =>
+      isSafeMediaUrl(s.url)
+    );
     return {
       ...base,
+      hlsUrl: safeBaseHlsUrl,
+      sources: safeSources,
       provider: 'file',
       youtubeId: undefined,
     };

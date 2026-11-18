@@ -8,10 +8,22 @@ import { SmartPWAInstallBanner } from '@/components/pwa/pwa-install-button';
 import { SmoothScrollProvider } from '@/components/shared/smooth-scroll-provider';
 import { PageTransition } from '@/components/shared/page-transition';
 import { FirebaseAuthSync } from '@/components/providers/firebase-auth-sync';
-import { getRootJsonLd } from '@/lib/seo/json-ld';
+import { getRootJsonLd, safeJsonLdStringify } from '@/lib/seo/json-ld';
 import './globals.css';
 
-const baseUrl = process.env.APP_URL || 'https://seftlab.com';
+const getValidBaseUrl = () => {
+  const envUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL;
+  if (envUrl) {
+    try {
+      return new URL(envUrl).toString();
+    } catch {
+      // ignore invalid URL and fallback
+    }
+  }
+  return 'https://seftlab.com';
+};
+
+const baseUrl = getValidBaseUrl();
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -92,42 +104,6 @@ export const metadata: Metadata = {
 
 const fetchDescriptorGuardScript = `
 (function () {
-  try {
-    var currentFetch = window.fetch ? window.fetch.bind(window) : undefined;
-    var winDesc = Object.getOwnPropertyDescriptor(window, 'fetch');
-    var protoDesc = typeof Window !== 'undefined' ? Object.getOwnPropertyDescriptor(Window.prototype, 'fetch') : undefined;
-
-    if (protoDesc && protoDesc.configurable && !protoDesc.set) {
-      Object.defineProperty(Window.prototype, 'fetch', {
-        configurable: true,
-        enumerable: true,
-        get: function () {
-          return currentFetch || (protoDesc.get ? protoDesc.get.call(this) : undefined);
-        },
-        set: function (fn) {
-          if (typeof fn === 'function') {
-            currentFetch = fn;
-          }
-        }
-      });
-    }
-
-    if (!winDesc || (winDesc.configurable && !winDesc.writable && !winDesc.set)) {
-      Object.defineProperty(window, 'fetch', {
-        configurable: true,
-        enumerable: true,
-        get: function () {
-          return currentFetch;
-        },
-        set: function (fn) {
-          if (typeof fn === 'function') {
-            currentFetch = fn;
-          }
-        }
-      });
-    }
-  } catch (_) {}
-
   window.addEventListener(
     'error',
     function (event) {
@@ -206,20 +182,22 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Tajawal:wght@400;500;700&display=swap"
           rel="stylesheet"
         />
-        <script
-          id="fetch-guard-script"
-          dangerouslySetInnerHTML={{ __html: fetchDescriptorGuardScript }}
-        />
-        <script
-          id="schema-jsonld-root"
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(rootJsonLd) }}
-        />
       </head>
       <body
         className="min-h-dvh flex flex-col bg-[#FAFBFC] text-[#0A1630] antialiased transition-colors dark:bg-[#070D1F] dark:text-[#FAFBFC]"
         suppressHydrationWarning
       >
+        <script
+          id="fetch-guard-script"
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: fetchDescriptorGuardScript }}
+        />
+        <script
+          id="schema-jsonld-root"
+          type="application/ld+json"
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(rootJsonLd) }}
+        />
         <FirebaseAuthSync />
         <SmoothScrollProvider>
           <OfflineIndicator />

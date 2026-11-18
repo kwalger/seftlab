@@ -142,7 +142,18 @@ export default function RegisterPage() {
         timeout,
       ]).catch(() => {});
 
-      // 3. ضبط الكوكيز وحالة التطبيق
+      // 3. ضبط الكوكيز ومزامنة جلسة الخادم الموقعة باستخدام Firebase ID Token
+      const idToken = await user.getIdToken();
+      await fetch('/api/auth/sync-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken,
+          name: name.trim(),
+          role,
+        }),
+      }).catch(() => {});
+
       document.cookie = `seftlab_role=${role}; path=/; max-age=604800; SameSite=Lax`;
       document.cookie = `tadreebak_role=${role}; path=/; max-age=604800; SameSite=Lax`;
 

@@ -3,6 +3,13 @@ import { LabMetadata } from '@/data/mock-data';
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://seftlab.com';
 
+export function safeJsonLdStringify(data: unknown): string {
+  return JSON.stringify(data)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+}
+
 export function getRootJsonLd() {
   return [
     {

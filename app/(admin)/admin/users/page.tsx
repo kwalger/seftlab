@@ -24,6 +24,7 @@ import {
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 import { useAdminStore } from '@/store/use-admin-store';
+import { PlatformService } from '@/services/platform-service';
 import { UserRole } from '@/types';
 import {
   ChartCard,
@@ -235,7 +236,7 @@ export default function AdminUsersPage() {
     }
   };
 
-  // 6. تصدير البيانات الحقيقية بصيغة CSV
+  // 6. تصدير البيانات الحقيقية بصيغة CSV (مع حماية ضد CSV Formula Injection)
   const handleExportCsv = () => {
     if (filtered.length === 0) {
       toast.error('لا توجد بيانات مستخدمين لتصديرها');
@@ -250,27 +251,20 @@ export default function AdminUsersPage() {
       'الحالة',
       'تاريخ الانضمام',
     ];
-    const lines = filtered.map((u) =>
-      [
-        u.id,
-        `"${u.fullName.replace(/"/g, '""')}"`,
-        u.email,
-        ROLE_LABELS[u.role] || u.role,
-        `"${u.universityOrOrg.replace(/"/g, '""')}"`,
-        u.status,
-        u.joinedAt,
-      ].join(',')
+    const rows = filtered.map((u) => [
+      u.id,
+      u.fullName,
+      u.email,
+      ROLE_LABELS[u.role] || u.role,
+      u.universityOrOrg,
+      u.status,
+      u.joinedAt,
+    ]);
+    PlatformService.exportRowsToCsv(
+      `seftlab-users-${new Date().toISOString().split('T')[0]}.csv`,
+      headers,
+      rows
     );
-    const csv = '\uFEFF' + [headers.join(','), ...lines].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `seftlab-users-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
     toast.success('تم تصدير قائمة مستخدمي Firestore الحقيقيين بصيغة CSV');
   };
 
