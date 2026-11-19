@@ -15,6 +15,7 @@ import {
 import { useAppStore } from '@/store/use-app-store';
 import { UserRole } from '@/types';
 import { Button } from '@/components/ui/button';
+import { auth } from '@/lib/firebase';
 import { isSuperAdminEmail } from '@/lib/auth-constants';
 
 const IS_DEV = process.env.NODE_ENV === 'development';
@@ -48,7 +49,7 @@ function getSafeInternalPath(rawPath: string | null, fallback: string): string {
 function UnauthorizedContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, switchRole } = useAppStore();
+  const { user, loginUser, switchRole } = useAppStore();
 
   const reqParam = searchParams.get('required') as UserRole | null;
   const requiredRole: UserRole =
@@ -63,34 +64,86 @@ function UnauthorizedContent() {
     ROLE_LABELS[requiredRole].home
   );
 
-  // Super Admin / Admin auto-recovery fallback: if admin hits 403, immediately grant admin and redirect
+  // Super Admin / Admin auto-recovery fallback: if admin hits 403, immediately sync session and redirect
   useEffect(() => {
     const isUserAdmin =
       (user?.email && isSuperAdminEmail(user.email)) || user?.role === 'admin';
-    if (isUserAdmin) {
+    if (!isUserAdmin) return;
+
+    let cancelled = false;
+
+    const recoverAdminSession = async () => {
       document.cookie = `seftlab_role=admin; path=/; max-age=604800; SameSite=Lax`;
       document.cookie = `tadreebak_role=admin; path=/; max-age=604800; SameSite=Lax`;
       if (user?.email) {
         document.cookie = `seftlab_email=${encodeURIComponent(user.email)}; path=/; max-age=604800; SameSite=Lax`;
       }
 
-      switchRole('admin');
-      router.replace(targetPath.startsWith('/admin') ? targetPath : '/admin');
-    }
-  }, [user, router, switchRole, targetPath]);
+      if (user && user.role !== 'admin') {
+        loginUser({ ...user, role: 'admin' });
+      }
+
+      try {
+        const fbUser = auth.currentUser;
+        if (fbUser) {
+          const idToken = await fbUser.getIdToken();
+          await fetch('/api/auth/sync-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              idToken,
+              name: user?.name || fbUser.displayName || undefined,
+              role: 'admin',
+            }),
+          }).catch(() => {});
+        }
+      } catch {
+        // ignore network errors and continue redirect
+      }
+
+      if (!cancelled) {
+        router.replace(targetPath.startsWith('/admin') ? targetPath : '/admin');
+      }
+    };
+
+    recoverAdminSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, router, loginUser, targetPath]);
 
   const handleSwitchAndContinue = () => {
     switchRole(requiredRole);
     router.push(`${targetPath}?role=${requiredRole}`);
   };
 
-  const handleSuperAdminEntry = () => {
+  const handleSuperAdminEntry = async () => {
     document.cookie = `seftlab_role=admin; path=/; max-age=604800; SameSite=Lax`;
     document.cookie = `tadreebak_role=admin; path=/; max-age=604800; SameSite=Lax`;
     if (user?.email) {
       document.cookie = `seftlab_email=${encodeURIComponent(user.email)}; path=/; max-age=604800; SameSite=Lax`;
     }
-    switchRole('admin');
+    if (user) {
+      loginUser({ ...user, role: 'admin' });
+    }
+    try {
+      const fbUser = auth.currentUser;
+      if (fbUser) {
+        const idToken = await fbUser.getIdToken();
+        await fetch('/api/auth/sync-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            idToken,
+            name: user?.name || fbUser.displayName || undefined,
+            role: 'admin',
+          }),
+        }).catch(() => {});
+      }
+    } catch {
+      // ignore
+    }
     router.push('/admin');
   };
 

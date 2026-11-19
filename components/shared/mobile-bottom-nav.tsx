@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
+import { getDashboardHomeForUser } from '@/lib/auth-constants';
 import { useKeyboardOffset } from '@/hooks/use-keyboard-offset';
 import { cn } from '@/lib/utils';
 
@@ -38,12 +39,7 @@ export function MobileBottomNav() {
     return null;
   }
 
-  const accountHref =
-    user?.role === 'company'
-      ? '/company'
-      : user?.role === 'teacher'
-      ? '/teacher'
-      : '/student';
+  const accountHref = getDashboardHomeForUser(user);
 
   const tabs = [
     { href: '/', label: 'الرئيسية', icon: Home },

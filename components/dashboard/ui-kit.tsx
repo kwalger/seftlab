@@ -39,7 +39,7 @@ export function PageHeader({
         </p>
       </div>
       {actions && (
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
           {actions}
         </div>
       )}
@@ -318,13 +318,16 @@ export interface DataTableColumn<T> {
   className?: string;
 }
 
+const DEFAULT_PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 0];
+
 export function DataTable<T>({
   data,
   columns,
   rowKey,
   searchPlaceholder = 'ابحث...',
   searchMatcher,
-  pageSize = 5,
+  pageSize = 25,
+  pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
   emptyTitle = 'لا توجد سجلات مطابقة',
   emptyDescription = 'جرب تعديل كلمات البحث أو الفلاتر لعرض النتائج.',
 }: {
@@ -334,6 +337,7 @@ export function DataTable<T>({
   searchPlaceholder?: string;
   searchMatcher?: (row: T, query: string) => boolean;
   pageSize?: number;
+  pageSizeOptions?: number[];
   emptyTitle?: string;
   emptyDescription?: string;
 }) {
@@ -341,6 +345,7 @@ export function DataTable<T>({
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
+  const [selectedPageSize, setSelectedPageSize] = useState(pageSize);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   const sortableColumns = useMemo(
@@ -373,12 +378,27 @@ export function DataTable<T>({
     return list;
   }, [data, query, searchMatcher, sortKey, sortDir, columns]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const paginatedRows = filteredData.slice(
-    (safePage - 1) * pageSize,
-    safePage * pageSize
+  const effectivePageSize =
+    selectedPageSize === 0 ? Math.max(filteredData.length, 1) : selectedPageSize;
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredData.length / effectivePageSize)
   );
+  const safePage = Math.min(page, totalPages);
+  const startOffset = (safePage - 1) * effectivePageSize;
+  const paginatedRows = filteredData.slice(
+    startOffset,
+    startOffset + effectivePageSize
+  );
+  const startIdx = filteredData.length === 0 ? 0 : startOffset + 1;
+  const endIdx = Math.min(startOffset + paginatedRows.length, filteredData.length);
+
+  const normalizedSizeOptions = useMemo(() => {
+    if (!pageSizeOptions || pageSizeOptions.length === 0) return [];
+    const unique = Array.from(new Set([...pageSizeOptions, pageSize]));
+    const positives = unique.filter((n) => n > 0).sort((a, b) => a - b);
+    return unique.includes(0) ? [...positives, 0] : positives;
+  }, [pageSizeOptions, pageSize]);
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -611,30 +631,57 @@ export function DataTable<T>({
         </>
       )}
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-1 text-xs">
+      {filteredData.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1 text-xs">
           <span className="font-tabular text-[#526077] dark:text-[#94A3B8]">
-            صفحة {safePage} من {totalPages}
+            عرض {startIdx}–{endIdx} من أصل {filteredData.length} سجل
+            {totalPages > 1 ? ` · صفحة ${safePage} من ${totalPages}` : ''}
           </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={safePage <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              aria-label="الصفحة السابقة"
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-[#E3E8F0] bg-white disabled:opacity-40 sm:h-10 sm:w-10 dark:border-[#1E325C] dark:bg-[#0A1630]"
-            >
-              <ChevronRight className="h-4 w-4 stroke-[1.5]" />
-            </button>
-            <button
-              type="button"
-              disabled={safePage >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              aria-label="الصفحة التالية"
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-[#E3E8F0] bg-white disabled:opacity-40 sm:h-10 sm:w-10 dark:border-[#1E325C] dark:bg-[#0A1630]"
-            >
-              <ChevronLeft className="h-4 w-4 stroke-[1.5]" />
-            </button>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {normalizedSizeOptions.length > 0 && (
+              <label className="inline-flex items-center gap-1.5 text-[#526077] dark:text-[#94A3B8]">
+                <span>عرض:</span>
+                <select
+                  aria-label="عدد السجلات في الصفحة"
+                  value={selectedPageSize}
+                  onChange={(e) => {
+                    setSelectedPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="h-9 rounded-[8px] border border-[#E3E8F0] bg-white px-2 text-xs font-medium text-[#0A1630] dark:border-[#1E325C] dark:bg-[#0A1630] dark:text-[#FAFBFC]"
+                >
+                  {normalizedSizeOptions.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt === 0 ? 'عرض الكل' : `${opt} سجل`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  aria-label="الصفحة السابقة"
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-[#E3E8F0] bg-white disabled:opacity-40 sm:h-10 sm:w-10 dark:border-[#1E325C] dark:bg-[#0A1630]"
+                >
+                  <ChevronRight className="h-4 w-4 stroke-[1.5]" />
+                </button>
+                <button
+                  type="button"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  aria-label="الصفحة التالية"
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-[#E3E8F0] bg-white disabled:opacity-40 sm:h-10 sm:w-10 dark:border-[#1E325C] dark:bg-[#0A1630]"
+                >
+                  <ChevronLeft className="h-4 w-4 stroke-[1.5]" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

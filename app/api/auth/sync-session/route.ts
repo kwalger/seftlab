@@ -5,6 +5,8 @@ import {
   verifySameOriginRequest,
 } from '@/lib/session';
 import { isSuperAdminEmail, resolveUserRole } from '@/lib/auth-constants';
+import { syncSingleUserToFirestoreServer } from '@/lib/firebase-admin';
+import { extractSlugFromEmail } from '@/lib/student-profile';
 
 export const runtime = 'edge';
 
@@ -43,14 +45,43 @@ export async function POST(request: NextRequest) {
     const displayName = rawName || verified.name || verified.email.split('@')[0];
     const requestedRole =
       typeof body.role === 'string' ? body.role : undefined;
+    const photoURL =
+      typeof body.photoURL === 'string' && body.photoURL.trim()
+        ? body.photoURL.trim().slice(0, 500)
+        : verified.picture;
+    const organizationOrUniversity =
+      typeof body.organizationOrUniversity === 'string' &&
+      body.organizationOrUniversity.trim()
+        ? body.organizationOrUniversity.trim().slice(0, 150)
+        : undefined;
 
-    // Never allow client-requested escalation to 'admin'; only verified Super Admins get 'admin'
-    const role = resolveUserRole(verified.email, requestedRole, false);
+    const syncResult = await syncSingleUserToFirestoreServer({
+      uid: verified.uid,
+      email: verified.email,
+      displayName,
+      photoURL,
+      requestedRole,
+      organizationOrUniversity,
+      idToken,
+    });
+
+    // Never allow client-requested escalation to 'admin'; only verified Super Admins or authoritative Firestore admins get 'admin'
+    const isSuper = isSuperAdminEmail(verified.email);
+    const role = isSuper
+      ? 'admin'
+      : resolveUserRole(
+          verified.email,
+          syncResult.synced ? syncResult.role : requestedRole,
+          syncResult.synced
+        );
+    const slug =
+      syncResult.slug || extractSlugFromEmail(verified.email, verified.uid);
 
     const sessionPayload = {
       id: verified.uid,
       email: verified.email,
-      name: displayName,
+      name: syncResult.displayName || displayName,
+      username: slug,
       role,
       issuedAt: Date.now(),
     };
@@ -61,7 +92,10 @@ export async function POST(request: NextRequest) {
       {
         ok: true,
         role,
-        isSuperAdmin: isSuperAdminEmail(verified.email),
+        username: slug,
+        slug,
+        isSuperAdmin: isSuper,
+        syncedToFirestore: syncResult.synced,
       },
       {
         headers: { 'Cache-Control': 'no-store, max-age=0' },
@@ -77,6 +111,14 @@ export async function POST(request: NextRequest) {
     });
 
     response.cookies.set('seftlab_role', role, {
+      httpOnly: false,
+      secure: isProd,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
+    });
+
+    response.cookies.set('tadreebak_role', role, {
       httpOnly: false,
       secure: isProd,
       sameSite: 'lax',

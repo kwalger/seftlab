@@ -233,20 +233,22 @@ function getFirebaseJwks() {
 
 function extractVerifiedFirebaseClaims(
   payload: Record<string, unknown>
-): { uid: string; email: string; name?: string } | null {
+): { uid: string; email: string; name?: string; picture?: string } | null {
   const uid = typeof payload.sub === 'string' ? payload.sub.trim() : '';
   const email =
     typeof payload.email === 'string' ? payload.email.trim().toLowerCase() : '';
   const name =
     typeof payload.name === 'string' ? payload.name.trim() : undefined;
+  const picture =
+    typeof payload.picture === 'string' ? payload.picture.trim() : undefined;
   if (!uid || !email || !email.includes('@')) return null;
-  return { uid, email, name };
+  return { uid, email, name, picture };
 }
 
 function decodeFirebaseJwtPayloadFallback(
   idToken: string,
   projectId: string
-): { uid: string; email: string; name?: string } | null {
+): { uid: string; email: string; name?: string; picture?: string } | null {
   const parts = idToken.split('.');
   if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) {
     return null;
@@ -280,7 +282,7 @@ function decodeFirebaseJwtPayloadFallback(
 
 export async function verifyFirebaseIdToken(
   idToken: string
-): Promise<{ uid: string; email: string; name?: string } | null> {
+): Promise<{ uid: string; email: string; name?: string; picture?: string } | null> {
   if (!idToken || typeof idToken !== 'string') return null;
   const projectId = (
     process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||

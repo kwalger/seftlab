@@ -12,9 +12,10 @@ import {
   signInWithRedirect,
   getRedirectResult,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { auth, db, googleProvider } from '@/lib/firebase';
-import { isSuperAdminEmail, resolveUserRole } from '@/lib/auth-constants';
+import { auth, googleProvider } from '@/lib/firebase';
+import { isSuperAdminEmail } from '@/lib/auth-constants';
+import { ensureFirestoreUserDocument } from '@/lib/client-user-sync';
+import { extractSlugFromEmail } from '@/lib/student-profile';
 import { useAppStore } from '@/store/use-app-store';
 import { useAdminStore } from '@/store/use-admin-store';
 import { useKeyboardOffset } from '@/hooks/use-keyboard-offset';
@@ -47,82 +48,6 @@ function GoogleIcon({ className }: { className?: string }) {
   );
 }
 
-// دالة فحص وتحديث وثيقة المستخدم مع دعم السوبر أدمن فوراً ودون تأخير
-async function syncFirestoreUser(
-  uid: string,
-  email: string | null,
-  displayName: string | null,
-  photoURL: string | null
-): Promise<{ role: UserRole; name: string; photoURL?: string }> {
-  const isSuper = isSuperAdminEmail(email);
-
-  // إذا كان المستخدم هو السوبر أدمن، يُمنح صلاحية الأدمن فوراً في 0ms بدون انتظار استعلامات الشبكة
-  if (isSuper) {
-    const adminName = displayName || (email ? email.split('@')[0] : 'Hasan Alarjan');
-    const userDocRef = doc(db, 'users', uid);
-    // تحديث قاعدة البيانات في الخلفية بدون حجز الواجهة
-    setDoc(
-      userDocRef,
-      {
-        name: adminName,
-        email: email || '',
-        role: 'admin',
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true }
-    ).catch(() => {});
-
-    return { role: 'admin', name: adminName, photoURL: photoURL || '' };
-  }
-
-  let role: UserRole = 'student';
-  let name = displayName || (email ? email.split('@')[0] : 'مستخدم');
-  let finalPhoto = photoURL || '';
-
-  try {
-    const userDocRef = doc(db, 'users', uid);
-    // مهلة كافية 4 ثوانٍ لتجنب أي تعليق
-    const timeout = new Promise<null>((_, reject) =>
-      setTimeout(() => reject(new Error('TIMEOUT')), 4000)
-    );
-
-    let docSnap: any = await Promise.race([getDoc(userDocRef), timeout]).catch(() => null);
-
-    // فحص بالبريد إن لم نجد بالـ UID
-    if ((!docSnap || !docSnap.exists()) && email) {
-      const q = query(
-        collection(db, 'users'),
-        where('email', '==', email.toLowerCase().trim())
-      );
-      const querySnap: any = await Promise.race([getDocs(q), timeout]).catch(() => null);
-      if (querySnap && !querySnap.empty) {
-        docSnap = querySnap.docs[0];
-      }
-    }
-
-    if (docSnap && docSnap.exists()) {
-      const data = docSnap.data();
-      const rawRole = (data.role as UserRole) || 'student';
-      role = resolveUserRole(email, rawRole, true);
-      if (data.name || data.fullName) name = data.name || data.fullName;
-      if (data.photoURL || data.avatarUrl) finalPhoto = data.photoURL || data.avatarUrl;
-    } else if (docSnap && !docSnap.exists() && !isSuper) {
-      // إنشاء المستند في الخلفية فقط إذا تأكدنا من عدم وجوده مسبقاً
-      setDoc(userDocRef, {
-        name,
-        email: email || '',
-        photoURL: photoURL || '',
-        role: 'student',
-        createdAt: new Date().toISOString(),
-      }).catch(() => {});
-    }
-  } catch (err) {
-    console.warn('Sync note:', err);
-  }
-
-  return { role, name, photoURL: finalPhoto };
-}
-
 export default function LoginPage() {
   const router = useRouter();
   const { loginUser } = useAppStore();
@@ -143,10 +68,15 @@ export default function LoginPage() {
     name: string,
     role: UserRole,
     photoURL?: string | null,
-    idToken?: string
+    idToken?: string,
+    usernameOverride?: string,
+    organizationOrUniversityOverride?: string
   ) => {
     const isSuper = isSuperAdminEmail(email);
     const effectiveRole: UserRole = isSuper ? 'admin' : role;
+    const resolvedOrg =
+      organizationOrUniversityOverride ||
+      (isSuper ? 'إدارة منصة SEFT Lab' : 'جامعة الزرقاء');
 
     // تعيين الكوكيز للـ Middleware
     document.cookie = `seftlab_role=${effectiveRole}; path=/; max-age=604800; SameSite=Lax`;
@@ -164,6 +94,8 @@ export default function LoginPage() {
           idToken,
           name,
           role: effectiveRole,
+          photoURL: photoURL || undefined,
+          organizationOrUniversity: resolvedOrg,
         }),
       }).catch(() => {});
     }
@@ -171,10 +103,10 @@ export default function LoginPage() {
     const session: UserSession = {
       id: uid,
       name: name,
-      username: email ? email.split('@')[0] : 'user',
+      username: usernameOverride || extractSlugFromEmail(email, uid),
       email: email || '',
       role: effectiveRole,
-      organizationOrUniversity: effectiveRole === 'teacher' ? 'جامعة الزرقاء' : 'جامعة الزرقاء',
+      organizationOrUniversity: resolvedOrg,
       approvalStatus: 'approved',
       avatarUrl: photoURL || undefined,
       photoURL: photoURL || undefined,
@@ -205,25 +137,30 @@ export default function LoginPage() {
 
   const completeFirebaseUserSession = async (user: FirebaseUser) => {
     const idToken = await user.getIdToken();
-    const { role, name, photoURL } = await syncFirestoreUser(
-      user.uid,
-      user.email,
-      user.displayName,
-      user.photoURL
-    );
+    const resolved = await ensureFirestoreUserDocument({
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      photoURL: user.photoURL,
+      createdAt: user.metadata?.creationTime || undefined,
+    });
 
     await completeSession(
       user.uid,
-      user.email,
-      name,
-      role,
-      photoURL || user.photoURL,
-      idToken
+      resolved.email || user.email,
+      resolved.displayName,
+      resolved.role,
+      resolved.photoURL || user.photoURL,
+      idToken,
+      resolved.slug,
+      resolved.organizationOrUniversity
     );
   };
 
   const completeFirebaseUserSessionRef = useRef(completeFirebaseUserSession);
-  completeFirebaseUserSessionRef.current = completeFirebaseUserSession;
+  useEffect(() => {
+    completeFirebaseUserSessionRef.current = completeFirebaseUserSession;
+  });
 
   const showGoogleAuthError = (err: unknown) => {
     triggerHaptic('error');
@@ -295,7 +232,10 @@ export default function LoginPage() {
           data.session.email,
           data.session.name,
           data.session.role,
-          data.session.avatarUrl
+          data.session.avatarUrl,
+          undefined,
+          data.session.username,
+          data.session.organizationOrUniversity
         );
         return true;
       }

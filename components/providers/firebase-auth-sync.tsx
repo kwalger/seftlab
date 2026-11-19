@@ -1,15 +1,82 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { auth } from '@/lib/firebase';
+import { isSuperAdminEmail } from '@/lib/auth-constants';
+import { ensureFirestoreUserDocument } from '@/lib/client-user-sync';
 import { useAppStore } from '@/store/use-app-store';
 import { UserRole, UserSession } from '@/types';
-import { isSuperAdminEmail, resolveUserRole } from '@/lib/auth-constants';
+
+function readRoleCookie(): string | undefined {
+  if (typeof document === 'undefined') return undefined;
+  return document.cookie.match(/(?:^|;\s*)seftlab_role=([^;]+)/)?.[1];
+}
 
 export function FirebaseAuthSync() {
-  const { loginUser } = useAppStore();
+  const pathname = usePathname();
+  const { loginUser, hasHydrated } = useAppStore();
+  const reconciledRef = useRef(false);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+    if (pathname === '/login' || pathname === '/register') {
+      return;
+    }
+
+    const currentUser = useAppStore.getState().user;
+    const cookieRole = readRoleCookie();
+    const roleMismatch = Boolean(cookieRole && currentUser?.role !== cookieRole);
+
+    if (reconciledRef.current && !roleMismatch) {
+      return;
+    }
+
+    let cancelled = false;
+    reconciledRef.current = true;
+
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.authenticated || !data.user) return;
+        const serverUser = data.user as UserSession;
+        const latestUser = useAppStore.getState().user;
+        const sameEmail = Boolean(
+          latestUser?.email &&
+            serverUser.email &&
+            latestUser.email.toLowerCase() === serverUser.email.toLowerCase()
+        );
+
+        if (
+          !latestUser ||
+          latestUser.role !== serverUser.role ||
+          (serverUser.email &&
+            latestUser.email?.toLowerCase() !== serverUser.email.toLowerCase())
+        ) {
+          loginUser({
+            ...serverUser,
+            avatarUrl: sameEmail ? latestUser?.avatarUrl : undefined,
+            photoURL: sameEmail ? latestUser?.photoURL : undefined,
+          });
+        }
+
+        if (typeof document !== 'undefined') {
+          document.cookie = `seftlab_role=${serverUser.role}; path=/; max-age=604800; SameSite=Lax`;
+          document.cookie = `tadreebak_role=${serverUser.role}; path=/; max-age=604800; SameSite=Lax`;
+          if (serverUser.email) {
+            document.cookie = `seftlab_email=${encodeURIComponent(
+              serverUser.email
+            )}; path=/; max-age=604800; SameSite=Lax`;
+          }
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasHydrated, pathname, loginUser]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
@@ -23,108 +90,69 @@ export function FirebaseAuthSync() {
         }
 
         const userEmail = fbUser.email?.toLowerCase().trim() || '';
-        const isSuperAdmin = isSuperAdminEmail(userEmail);
+        const isSuper = isSuperAdminEmail(userEmail);
 
-        let role: UserRole = isSuperAdmin ? 'admin' : 'student';
-        let name =
-          fbUser.displayName ||
-          (userEmail ? userEmail.split('@')[0] : 'مستخدم منصة SEFT Lab');
-        let photo = fbUser.photoURL || '';
-
-        // إذا كان المستخدم سوبر أدمن، يُفعّل فوراً بدون أي تأخير
-        if (isSuperAdmin) {
-          const uidDocRef = doc(db, 'users', fbUser.uid);
-          setDoc(
-            uidDocRef,
-            {
-              name,
-              email: userEmail,
-              role: 'admin',
-              updatedAt: new Date().toISOString(),
-            },
-            { merge: true }
-          ).catch(() => {});
-        } else {
-          try {
-            const timeout = new Promise<null>((_, reject) =>
-              setTimeout(() => reject(new Error('TIMEOUT')), 4000)
-            );
-
-            // 1. استعلام بالـ UID
-            const uidDocRef = doc(db, 'users', fbUser.uid);
-            let snap = (await Promise.race([
-              getDoc(uidDocRef),
-              timeout,
-            ])) as any;
-
-            let docData: any = null;
-
-            if (snap && typeof snap.exists === 'function' && snap.exists()) {
-              docData = snap.data();
-            } else if (userEmail) {
-              try {
-                const q = query(collection(db, 'users'), where('email', '==', userEmail));
-                const qSnap = (await Promise.race([
-                  getDocs(q),
-                  timeout,
-                ])) as any;
-                if (qSnap && !qSnap.empty) {
-                  docData = qSnap.docs[0].data();
-                }
-              } catch {}
-            }
-
-            if (docData) {
-              if (docData.name) name = docData.name;
-              if (docData.photoURL) photo = docData.photoURL;
-              if (docData.role) {
-                role = resolveUserRole(userEmail, docData.role, true);
-              }
-            } else {
-              setDoc(uidDocRef, {
-                name,
-                email: userEmail,
-                photoURL: photo,
-                role: 'student',
-                createdAt: new Date().toISOString(),
-              }).catch(() => {});
-            }
-          } catch (err) {
-            console.warn('[AuthSync] Note:', err);
+        if (isSuper && typeof document !== 'undefined') {
+          document.cookie = `seftlab_role=admin; path=/; max-age=604800; SameSite=Lax`;
+          document.cookie = `tadreebak_role=admin; path=/; max-age=604800; SameSite=Lax`;
+          if (userEmail) {
+            document.cookie = `seftlab_email=${encodeURIComponent(
+              userEmail
+            )}; path=/; max-age=604800; SameSite=Lax`;
           }
         }
 
+        const resolved = await ensureFirestoreUserDocument({
+          uid: fbUser.uid,
+          email: userEmail,
+          displayName: fbUser.displayName,
+          photoURL: fbUser.photoURL,
+          role: isSuper ? 'admin' : undefined,
+          createdAt: fbUser.metadata?.creationTime || undefined,
+        });
+
+        const finalRole: UserRole = isSuper ? 'admin' : resolved.role;
+        const finalEmail = resolved.email || userEmail;
+
         // Set cookies locally for immediate client navigation
         if (typeof document !== 'undefined') {
-          document.cookie = `seftlab_role=${role}; path=/; max-age=604800; SameSite=Lax`;
-          document.cookie = `tadreebak_role=${role}; path=/; max-age=604800; SameSite=Lax`;
-          document.cookie = `seftlab_email=${encodeURIComponent(userEmail)}; path=/; max-age=604800; SameSite=Lax`;
+          document.cookie = `seftlab_role=${finalRole}; path=/; max-age=604800; SameSite=Lax`;
+          document.cookie = `tadreebak_role=${finalRole}; path=/; max-age=604800; SameSite=Lax`;
+          if (finalEmail) {
+            document.cookie = `seftlab_email=${encodeURIComponent(
+              finalEmail
+            )}; path=/; max-age=604800; SameSite=Lax`;
+          }
         }
 
         // Sync signed session cookie to server via Edge API route using verified Firebase ID Token
         try {
           const idToken = await fbUser.getIdToken();
-          fetch('/api/auth/sync-session', {
+          await fetch('/api/auth/sync-session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               idToken,
-              name,
-              role,
+              name: resolved.displayName,
+              role: finalRole,
+              photoURL: resolved.photoURL || undefined,
+              organizationOrUniversity: resolved.organizationOrUniversity,
             }),
-          }).catch((e) => console.warn('[FirebaseAuthSync] sync-session fetch error:', e));
+          }).catch((e) =>
+            console.warn('[FirebaseAuthSync] sync-session fetch error:', e)
+          );
         } catch {}
 
         const session: UserSession = {
           id: fbUser.uid,
-          name: name,
-          username: userEmail ? userEmail.split('@')[0] : 'user',
-          email: userEmail,
-          role: role,
-          organizationOrUniversity: isSuperAdmin ? 'إدارة منصة SEFT Lab' : 'جامعة الزرقاء',
+          name: resolved.displayName,
+          username: resolved.slug,
+          email: finalEmail,
+          role: finalRole,
+          organizationOrUniversity: resolved.organizationOrUniversity,
           approvalStatus: 'approved',
-          avatarUrl: photo || undefined,
-          photoURL: photo || undefined,
+          avatarUrl: resolved.photoURL || undefined,
+          photoURL: resolved.photoURL || undefined,
         };
 
         loginUser(session);

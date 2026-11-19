@@ -17,12 +17,16 @@ import {
   Settings,
 } from 'lucide-react';
 import { useAdminStore } from '@/store/use-admin-store';
+import { useAppStore } from '@/store/use-app-store';
+import { useFirestoreUsers } from '@/lib/hooks/use-firestore-users';
 import {
   DashboardAppShell,
   SidebarNavItem,
 } from '@/components/dashboard/app-shell';
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
+  const { user } = useAppStore();
+  const { pendingUsersCount } = useFirestoreUsers();
   const {
     approvalRequests,
     notifications,
@@ -32,9 +36,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     dismissAnnouncement,
   } = useAdminStore();
 
-  const pendingApprovals = approvalRequests.filter(
+  const storePendingApprovals = approvalRequests.filter(
     (r) => r.status === 'قيد المراجعة'
   ).length;
+  const pendingApprovals =
+    pendingUsersCount > 0 ? pendingUsersCount : storePendingApprovals;
 
   const navItems: SidebarNavItem[] = [
     {
@@ -105,11 +111,18 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     },
   ];
 
+  const identityName = user?.name || 'مدير النظام العام';
+  const identitySubtitle = user?.email
+    ? `${user.email} · صلاحيات كاملة`
+    : 'إدارة منصة SEFT Lab · صلاحيات كاملة';
+  const avatarUrl = user?.avatarUrl || user?.photoURL;
+
   return (
     <DashboardAppShell
       mode="admin"
-      identityName="مدير النظام العام"
-      identitySubtitle="إدارة منصة SEFT Lab · صلاحيات كاملة"
+      identityName={identityName}
+      identitySubtitle={identitySubtitle}
+      avatarUrl={avatarUrl}
       publicProfileHref="/"
       publicProfileLabel="عرض الموقع العام"
       navItems={navItems}

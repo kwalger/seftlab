@@ -35,13 +35,13 @@ import { Button } from '@/components/ui/button';
 export default function AdminOverviewPage() {
   const {
     users: realUsers,
+    totalCount,
     loading: usersLoading,
     studentCount,
     teacherCount,
     companyCount,
     adminCount,
     activeUsersCount,
-    pendingUsersCount,
     userGrowthData,
   } = useFirestoreUsers();
 
@@ -86,7 +86,7 @@ export default function AdminOverviewPage() {
             <Link href="/admin/users">
               <Button size="sm" className="gap-1.5">
                 <Users className="h-3.5 w-3.5 stroke-[1.5]" />
-                <span>إدارة المستخدمين ({realUsers.length})</span>
+                <span>إدارة المستخدمين ({totalCount})</span>
               </Button>
             </Link>
           </>
@@ -105,16 +105,16 @@ export default function AdminOverviewPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <DashboardStatCard
             label="إجمالي المستخدمين المسجلين"
-            value={realUsers.length.toLocaleString('en-US')}
+            value={totalCount.toLocaleString('en-US')}
             changeText="بيانات حقيقية من Firestore"
-            subtitle={`${studentCount} طلاب، ${teacherCount} معلمين، ${companyCount} شركات`}
+            subtitle={`${studentCount} طلاب، ${teacherCount} معلمين، ${companyCount} شركات، ${adminCount} إدارة`}
             icon={Users}
           />
           <DashboardStatCard
             label="المستخدمون النشطون"
             value={activeUsersCount.toLocaleString('en-US')}
             changeText="حسابات بحالة نشطة"
-            subtitle={`معدل التفعيل ${realUsers.length > 0 ? Math.round((activeUsersCount / realUsers.length) * 100) : 100}%`}
+            subtitle={`معدل التفعيل ${totalCount > 0 ? Math.round((activeUsersCount / totalCount) * 100) : 0}%`}
             icon={Activity}
           />
           <DashboardStatCard

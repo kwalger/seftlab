@@ -18,6 +18,7 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
+import { getDashboardHomeForUser } from '@/lib/auth-constants';
 import { LABS_METADATA } from '@/data/mock-data';
 import {
   getCourseJsonLd,
@@ -107,13 +108,7 @@ const BENEFITS = [
 export default function LabsCatalogPage() {
   const { user } = useAppStore();
 
-  const startHref = user
-    ? user.role === 'company'
-      ? '/company'
-      : user.role === 'teacher'
-      ? '/teacher'
-      : '/student'
-    : '/register';
+  const startHref = user ? getDashboardHomeForUser(user) : '/register';
 
   const coursesJsonLd = LABS_METADATA.map((lab) => getCourseJsonLd(lab));
   const breadcrumbJsonLd = getBreadcrumbJsonLd([

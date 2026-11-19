@@ -14,6 +14,8 @@ import {
   Save,
   Trash2,
 } from 'lucide-react';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { useAppStore } from '@/store/use-app-store';
 import { useStudentDashboardStore } from '@/store/use-student-dashboard-store';
 import { RadarChart } from '@/components/shared/radar-chart';
@@ -44,7 +46,7 @@ const studentProfileEditorSchema = z.object({
 type ProfileEditorValues = z.infer<typeof studentProfileEditorSchema>;
 
 export default function StudentProfileEditorPage() {
-  const { currentStudent, updateStudentProfile, togglePublicProfile } =
+  const { user, currentStudent, updateStudentProfile, togglePublicProfile } =
     useAppStore();
   const {
     projects,
@@ -87,8 +89,41 @@ export default function StudentProfileEditorPage() {
 
   const watchedValues = useWatch({ control });
 
+  const syncProfileFieldsToFirestore = (fields: Record<string, unknown>) => {
+    const uid = user?.id;
+    if (
+      uid &&
+      !uid.startsWith('usr-') &&
+      !uid.startsWith('dev-') &&
+      !uid.startsWith('stu-')
+    ) {
+      setDoc(
+        doc(db, 'users', uid),
+        {
+          ...fields,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      ).catch(() => {});
+    }
+  };
+
   const onSubmit = (values: ProfileEditorValues) => {
     updateStudentProfile(values);
+    syncProfileFieldsToFirestore({
+      fullName: values.fullName,
+      name: values.fullName,
+      displayName: values.fullName,
+      university: values.university,
+      organizationOrUniversity: values.university,
+      major: values.major,
+      graduationYear: values.graduationYear,
+      city: values.city,
+      bio: values.bio,
+      educationDetails: values.educationDetails,
+      githubOrPortfolio: values.githubOrPortfolio || '',
+      linkedinUrl: values.linkedinUrl || '',
+    });
     completeChecklistStep('step-edu');
     if (values.githubOrPortfolio || values.linkedinUrl) {
       completeChecklistStep('step-links');
@@ -156,10 +191,14 @@ export default function StudentProfileEditorPage() {
             variant={currentStudent.isPublicToCompanies ? 'default' : 'secondary'}
             size="sm"
             onClick={() => {
+              const nextPublic = !currentStudent.isPublicToCompanies;
               togglePublicProfile();
+              syncProfileFieldsToFirestore({
+                isPublicToCompanies: nextPublic,
+              });
               completeChecklistStep('step-public');
               toast.success(
-                !currentStudent.isPublicToCompanies
+                nextPublic
                   ? 'تم فتح البروفايل المهني للشركات'
                   : 'تم إخفاء البروفايل عن بوابة الشركات مؤقتاً'
               );

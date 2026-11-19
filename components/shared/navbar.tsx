@@ -14,6 +14,10 @@ import {
   LayoutDashboard,
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
+import {
+  getDashboardHomeForUser,
+  getEffectiveUserRole,
+} from '@/lib/auth-constants';
 import { PWAInstallButton } from '@/components/pwa/pwa-install-button';
 import { TadreebakLogo } from '@/components/shared/tadreebak-logo';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
@@ -91,12 +95,10 @@ export function Navbar() {
 
   const pageTitle = getPageTitle(pathname);
 
-  const dashboardHref =
-    user?.role === 'company'
-      ? '/company'
-      : user?.role === 'teacher'
-      ? '/teacher'
-      : '/student';
+  const effectiveRole = getEffectiveUserRole(user);
+  const dashboardHref = getDashboardHomeForUser(user);
+  const dashboardLabel =
+    user && effectiveRole === 'admin' ? 'لوحة الإدارة' : 'لوحتي';
 
   const navLinks = [
     { href: '/', label: 'الرئيسية' },
@@ -104,7 +106,7 @@ export function Navbar() {
     { href: '/leaderboard', label: 'المتصدرون' },
     { href: '/for-companies', label: 'للشركات' },
     { href: '/about', label: 'عن المنصة' },
-    { href: dashboardHref, label: 'لوحتي' },
+    { href: dashboardHref, label: dashboardLabel },
   ];
 
   const labShortcuts = [

@@ -362,6 +362,21 @@ export const useAppStore = create<AppState>()(
         ) {
           return;
         }
+        if (
+          currentUser &&
+          isSuperAdminEmail(currentUser.email) &&
+          role === 'admin'
+        ) {
+          const repairedAdmin: UserSession = {
+            ...currentUser,
+            role: 'admin',
+            organizationOrUniversity:
+              currentUser.organizationOrUniversity || 'إدارة منصة SEFT Lab',
+          };
+          setRoleCookie('admin', repairedAdmin.email);
+          set({ user: repairedAdmin });
+          return;
+        }
         const nextUser =
           role === 'company'
             ? DEMO_COMPANY_USER
@@ -370,7 +385,7 @@ export const useAppStore = create<AppState>()(
             : role === 'admin'
             ? DEMO_ADMIN_USER
             : DEMO_STUDENT_USER;
-        setRoleCookie(role);
+        setRoleCookie(role, nextUser.email);
         set({ user: nextUser });
       },
 
@@ -416,6 +431,17 @@ export const useAppStore = create<AppState>()(
       storage: ssrSafeLocalStorage,
       onRehydrateStorage: () => (state) => {
         if (state) {
+          if (state.user && isSuperAdminEmail(state.user.email)) {
+            if (state.user.role !== 'admin') {
+              state.loginUser({
+                ...state.user,
+                role: 'admin',
+                organizationOrUniversity:
+                  state.user.organizationOrUniversity || 'إدارة منصة SEFT Lab',
+              });
+            }
+            setRoleCookie('admin', state.user.email);
+          }
           state.setHasHydrated(true);
           if (typeof document !== 'undefined') {
             document.documentElement.classList.toggle(

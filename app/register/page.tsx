@@ -20,9 +20,9 @@ import {
   signInWithRedirect,
   getRedirectResult,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db, googleProvider } from '@/lib/firebase';
-import { isSuperAdminEmail, resolveUserRole } from '@/lib/auth-constants';
+import { auth, googleProvider } from '@/lib/firebase';
+import { isSuperAdminEmail } from '@/lib/auth-constants';
+import { ensureFirestoreUserDocument } from '@/lib/client-user-sync';
 import { useAppStore } from '@/store/use-app-store';
 import { useKeyboardOffset } from '@/hooks/use-keyboard-offset';
 import { triggerHaptic } from '@/lib/haptics';
@@ -86,48 +86,27 @@ export default function RegisterPage() {
     const chosenRole: 'student' | 'company' =
       prefs?.role === 'company' || role === 'company' ? 'company' : 'student';
 
-    let finalRole: UserRole = isSuper ? 'admin' : chosenRole;
-    let displayName =
+    const preferredRole: UserRole = isSuper ? 'admin' : chosenRole;
+    const preferredDisplayName =
       prefs?.name?.trim() ||
       name.trim() ||
       user.displayName ||
       (userEmail ? userEmail.split('@')[0] : 'مستخدم SEFT Lab');
-    let org =
+    const preferredOrg =
       prefs?.organizationOrUniversity?.trim() ||
       organizationOrUniversity.trim() ||
       UNIVERSITIES[0];
-    let photo = user.photoURL || '';
+    const preferredPhoto = user.photoURL || '';
 
-    const userDocRef = doc(db, 'users', user.uid);
-    const timeout = new Promise<null>((_, reject) =>
-      setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), 3500)
-    );
-
-    const existingSnap: any = await Promise.race([
-      getDoc(userDocRef),
-      timeout,
-    ]).catch(() => null);
-
-    if (existingSnap && typeof existingSnap.exists === 'function' && existingSnap.exists()) {
-      const data = existingSnap.data();
-      finalRole = resolveUserRole(userEmail, data.role, true);
-      if (data.name || data.fullName) displayName = data.name || data.fullName;
-      if (data.organizationOrUniversity) org = data.organizationOrUniversity;
-      if (data.photoURL || data.avatarUrl) photo = data.photoURL || data.avatarUrl;
-    } else {
-      setDoc(
-        userDocRef,
-        {
-          name: displayName,
-          email: userEmail,
-          photoURL: photo,
-          role: finalRole,
-          organizationOrUniversity: org,
-          createdAt: new Date().toISOString(),
-        },
-        { merge: true }
-      ).catch(() => {});
-    }
+    const resolved = await ensureFirestoreUserDocument({
+      uid: user.uid,
+      email: userEmail,
+      displayName: preferredDisplayName,
+      photoURL: preferredPhoto,
+      role: preferredRole,
+      organizationOrUniversity: preferredOrg,
+      createdAt: user.metadata?.creationTime || undefined,
+    });
 
     const idToken = await user.getIdToken();
     await fetch('/api/auth/sync-session', {
@@ -135,44 +114,48 @@ export default function RegisterPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         idToken,
-        name: displayName,
-        role: finalRole,
+        name: resolved.displayName,
+        role: resolved.role,
+        photoURL: resolved.photoURL || undefined,
+        organizationOrUniversity: resolved.organizationOrUniversity,
       }),
     }).catch(() => {});
 
-    document.cookie = `seftlab_role=${finalRole}; path=/; max-age=604800; SameSite=Lax`;
-    document.cookie = `tadreebak_role=${finalRole}; path=/; max-age=604800; SameSite=Lax`;
+    document.cookie = `seftlab_role=${resolved.role}; path=/; max-age=604800; SameSite=Lax`;
+    document.cookie = `tadreebak_role=${resolved.role}; path=/; max-age=604800; SameSite=Lax`;
     if (userEmail) {
       document.cookie = `seftlab_email=${encodeURIComponent(userEmail)}; path=/; max-age=604800; SameSite=Lax`;
     }
 
     loginUser({
       id: user.uid,
-      name: displayName,
-      username: userEmail ? userEmail.split('@')[0] : 'user',
-      email: userEmail,
-      role: finalRole,
-      organizationOrUniversity: org,
+      name: resolved.displayName,
+      username: resolved.slug,
+      email: resolved.email || userEmail,
+      role: resolved.role,
+      organizationOrUniversity: resolved.organizationOrUniversity,
       approvalStatus: 'approved',
-      avatarUrl: photo || undefined,
-      photoURL: photo || undefined,
+      avatarUrl: resolved.photoURL || undefined,
+      photoURL: resolved.photoURL || undefined,
     });
 
     triggerHaptic('success');
-    toast.success(`مرحباً بك، ${displayName}`);
+    toast.success(`مرحباً بك، ${resolved.displayName}`);
     router.push(
-      finalRole === 'admin'
+      resolved.role === 'admin'
         ? '/admin'
-        : finalRole === 'teacher'
+        : resolved.role === 'teacher'
         ? '/teacher'
-        : finalRole === 'company'
+        : resolved.role === 'company'
         ? '/company'
         : '/student'
     );
   };
 
   const completeGoogleRegistrationRef = useRef(completeGoogleRegistration);
-  completeGoogleRegistrationRef.current = completeGoogleRegistration;
+  useEffect(() => {
+    completeGoogleRegistrationRef.current = completeGoogleRegistration;
+  });
 
   const showGoogleError = (err: unknown) => {
     triggerHaptic('error');
@@ -333,10 +316,12 @@ export default function RegisterPage() {
     setSubmitting(true);
 
     try {
+      const normalizedEmail = email.trim().toLowerCase();
+
       // 1. إنشاء الحساب الحقيقي في Firebase Authentication
       const userCredential = await createUserWithEmailAndPassword(
         auth,
-        email.trim(),
+        normalizedEmail,
         password
       );
       const user = userCredential.user;
@@ -346,22 +331,15 @@ export default function RegisterPage() {
         displayName: name.trim(),
       }).catch(() => {});
 
-      // 2. حفظ وثيقة المستخدم في Firestore
-      const userDocRef = doc(db, 'users', user.uid);
-      const timeout = new Promise<null>((_, reject) =>
-        setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), 3500)
-      );
-
-      await Promise.race([
-        setDoc(userDocRef, {
-          name: name.trim(),
-          email: email.trim(),
-          role: role,
-          organizationOrUniversity: organizationOrUniversity.trim(),
-          createdAt: new Date().toISOString(),
-        }),
-        timeout,
-      ]).catch(() => {});
+      // 2. حفظ وثيقة المستخدم في Firestore مع المعرف والـ slug والرتبة
+      const resolved = await ensureFirestoreUserDocument({
+        uid: user.uid,
+        email: normalizedEmail,
+        displayName: name.trim(),
+        role,
+        organizationOrUniversity: organizationOrUniversity.trim(),
+        createdAt: user.metadata?.creationTime || undefined,
+      });
 
       // 3. ضبط الكوكيز ومزامنة جلسة الخادم الموقعة باستخدام Firebase ID Token
       const idToken = await user.getIdToken();
@@ -370,29 +348,41 @@ export default function RegisterPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           idToken,
-          name: name.trim(),
-          role,
+          name: resolved.displayName,
+          role: resolved.role,
+          organizationOrUniversity: resolved.organizationOrUniversity,
         }),
       }).catch(() => {});
 
-      document.cookie = `seftlab_role=${role}; path=/; max-age=604800; SameSite=Lax`;
-      document.cookie = `tadreebak_role=${role}; path=/; max-age=604800; SameSite=Lax`;
+      document.cookie = `seftlab_role=${resolved.role}; path=/; max-age=604800; SameSite=Lax`;
+      document.cookie = `tadreebak_role=${resolved.role}; path=/; max-age=604800; SameSite=Lax`;
+      document.cookie = `seftlab_email=${encodeURIComponent(normalizedEmail)}; path=/; max-age=604800; SameSite=Lax`;
 
       loginUser({
         id: user.uid,
-        name: name.trim(),
-        username: email.trim().split('@')[0],
-        email: email.trim(),
-        role,
-        organizationOrUniversity: organizationOrUniversity.trim(),
+        name: resolved.displayName,
+        username: resolved.slug,
+        email: resolved.email || normalizedEmail,
+        role: resolved.role,
+        organizationOrUniversity: resolved.organizationOrUniversity,
         approvalStatus: 'approved',
       });
 
       triggerHaptic('success');
       toast.success(
-        role === 'student' ? 'تم إنشاء حساب الطالب بنجاح' : 'تم إنشاء الحساب بنجاح'
+        resolved.role === 'student'
+          ? 'تم إنشاء حساب الطالب بنجاح'
+          : 'تم إنشاء الحساب بنجاح'
       );
-      router.push(role === 'student' ? '/student' : '/company');
+      router.push(
+        resolved.role === 'student'
+          ? '/student'
+          : resolved.role === 'company'
+          ? '/company'
+          : resolved.role === 'teacher'
+          ? '/teacher'
+          : '/admin'
+      );
     } catch (err: unknown) {
       triggerHaptic('error');
       const firebaseError = err as { code?: string; message?: string };

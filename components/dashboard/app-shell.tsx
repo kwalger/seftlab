@@ -24,6 +24,7 @@ import {
   Repeat,
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
+import { isSuperAdminEmail } from '@/lib/auth-constants';
 import { UserRole } from '@/types';
 import { DashboardNotification } from '@/data/dashboard-mock-data';
 import { DashboardCommandPalette } from '@/components/dashboard/command-palette';
@@ -102,7 +103,10 @@ export function DashboardAppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { theme, toggleTheme, switchRole, logoutUser } = useAppStore();
+  const { user, theme, toggleTheme, switchRole, logoutUser } = useAppStore();
+  const isAdminSession = Boolean(
+    user && (user.role === 'admin' || isSuperAdminEmail(user.email))
+  );
   const { isKeyboardOpen } = useKeyboardOffset(false);
   const isMobile = useIsMobile();
 
@@ -616,7 +620,9 @@ export function DashboardAppShell({
                       {identityName}
                     </p>
                     <span className="shrink-0 rounded-full bg-[#2F6BFF]/20 px-2 py-0.5 text-[9px] font-semibold text-[#8BB2FF]">
-                      {mode === 'student'
+                      {isAdminSession
+                        ? 'أدمن'
+                        : mode === 'student'
                         ? 'طالب'
                         : mode === 'teacher'
                         ? 'معلم'
@@ -879,6 +885,15 @@ export function DashboardAppShell({
                 <Compass className="h-3.5 w-3.5 stroke-[2]" />
                 <span className="hidden sm:inline">شرح القوائم</span>
               </button>
+            )}
+
+            {isAdminSession && mode !== 'admin' && (
+              <Link
+                href="/admin"
+                className="inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full bg-[#2F6BFF] px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-[#1E56E8]"
+              >
+                <span>لوحة الإدارة</span>
+              </Link>
             )}
 
             <Link

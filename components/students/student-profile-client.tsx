@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
@@ -10,9 +11,12 @@ import {
   Send,
   ArrowRight,
   Bookmark,
+  UserSearch,
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { ACHIEVEMENT_BADGES, LABS_METADATA } from '@/data/mock-data';
+import { findStudentProfileClient } from '@/lib/client-user-sync';
+import { normalizeStudentIdentifier } from '@/lib/student-profile';
 import {
   generateStudentSkillMetrics,
   generateRadarChartAxes,
@@ -36,35 +40,74 @@ import { StudentTalent } from '@/types';
 
 interface StudentProfileClientProps {
   initialUsername: string;
-  fallbackStudent?: StudentTalent;
+  initialStudent?: StudentTalent | null;
 }
 
 export function StudentProfileClient({
   initialUsername,
-  fallbackStudent,
+  initialStudent,
 }: StudentProfileClientProps) {
   const {
     allStudents,
+    currentStudent,
     shortlistedUsernames,
     toggleShortlistStudent,
     sendCompanyMessage,
   } = useAppStore();
 
-  const student =
-    allStudents.find((s) => s.username === initialUsername) ||
-    fallbackStudent ||
-    allStudents[0];
+  const { raw, normalized } = useMemo(
+    () => normalizeStudentIdentifier(initialUsername),
+    [initialUsername]
+  );
 
+  const [lookupResult, setLookupResult] = useState<{
+    key: string;
+    student: StudentTalent | null;
+  } | null>(null);
   const [contactOpen, setContactOpen] = useState(false);
 
-  const isShortlisted = shortlistedUsernames.includes(student.username);
-  const skillMetrics = generateStudentSkillMetrics(student.labXp);
-  const radarAxes = generateRadarChartAxes(student.labXp);
-  const overallLevel = calculateSkillLevelFromXp(Math.round(student.totalXp / 3.5));
+  const localMatch = useMemo(() => {
+    if (!raw) return null;
+    if (
+      currentStudent &&
+      currentStudent.id !== 'stu-current' &&
+      (currentStudent.username.toLowerCase() === normalized ||
+        currentStudent.id === raw)
+    ) {
+      return currentStudent;
+    }
+    return (
+      allStudents.find(
+        (s) => s.username.toLowerCase() === normalized || s.id === raw
+      ) || null
+    );
+  }, [allStudents, currentStudent, normalized, raw]);
 
-  const earnedBadges = ACHIEVEMENT_BADGES.filter((b) =>
-    student.earnedBadges.includes(b.id)
-  );
+  useEffect(() => {
+    if (initialStudent) return;
+
+    let cancelled = false;
+    findStudentProfileClient(initialUsername)
+      .then((found) => {
+        if (!cancelled) {
+          setLookupResult({ key: initialUsername, student: found });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLookupResult({ key: initialUsername, student: null });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialUsername, initialStudent]);
+
+  const firestoreStudent =
+    lookupResult?.key === initialUsername ? lookupResult.student : null;
+  const student = initialStudent ?? firestoreStudent ?? localMatch ?? null;
+  const isLoading = !student && lookupResult?.key !== initialUsername;
 
   const {
     register,
@@ -77,10 +120,82 @@ export function StudentProfileClient({
       companyName: 'شركة تقنية المستقبل',
       senderRole: 'سارة الخطيب - مسؤولة استقطاب المواهب',
       offeredRoleType: 'مرشح لوظيفة / تدريب عملي مدفوع',
-      subject: `دعوة لمقابلة عمل — ${student.fullName}`,
-      message: `مرحباً ${student.fullName}، اطلعنا على نتائجك الموثقة في مختبرات SEFT Lab ونود دعوتك لمقابلة تعارف قصيرة.`,
+      subject: student ? `دعوة لمقابلة عمل — ${student.fullName}` : '',
+      message: student
+        ? `مرحباً ${student.fullName}، اطلعنا على نتائجك الموثقة في مختبرات SEFT Lab ونود دعوتك لمقابلة تعارف قصيرة.`
+        : '',
     },
   });
+
+  useEffect(() => {
+    if (!student) return;
+    reset({
+      companyName: 'شركة تقنية المستقبل',
+      senderRole: 'سارة الخطيب - مسؤولة استقطاب المواهب',
+      offeredRoleType: 'مرشح لوظيفة / تدريب عملي مدفوع',
+      subject: `دعوة لمقابلة عمل — ${student.fullName}`,
+      message: `مرحباً ${student.fullName}، اطلعنا على نتائجك الموثقة في مختبرات SEFT Lab ونود دعوتك لمقابلة تعارف قصيرة.`,
+    });
+  }, [student, reset]);
+
+  if (isLoading && !student) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="rounded-[20px] border border-[#E3E8F0] bg-white p-8 text-center dark:border-[#1E325C] dark:bg-[#0A1630]">
+          <div className="mx-auto mb-4 h-16 w-16 animate-pulse rounded-[14px] bg-[#E3E8F0] dark:bg-[#1E325C]" />
+          <div className="mx-auto mb-3 h-6 w-56 animate-pulse rounded bg-[#E3E8F0] dark:bg-[#1E325C]" />
+          <p className="text-sm font-medium text-[#526077] dark:text-[#94A3B8]">
+            جارٍ تحميل ملف الطالب من قاعدة البيانات...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!student) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="rounded-[20px] border border-[#E3E8F0] bg-white p-8 text-center dark:border-[#1E325C] dark:bg-[#0A1630]">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#2F6BFF]/10 text-[#2F6BFF]">
+            <UserSearch className="h-7 w-7 stroke-[1.5]" />
+          </div>
+          <h1 className="text-xl font-semibold text-[#0A1630] sm:text-2xl dark:text-[#FAFBFC]">
+            لم يتم العثور على ملف الطالب
+          </h1>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[#526077] dark:text-[#94A3B8]">
+            لا يوجد سجل مطابق للمعرف{' '}
+            <code
+              dir="ltr"
+              className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-xs text-[#2F6BFF] dark:bg-[#1E325C]"
+            >
+              {raw || initialUsername}
+            </code>{' '}
+            في قاعدة البيانات حالياً. يمكنك تصفح لوحة المتصدرين أو الانتقال إلى المختبرات.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link href="/leaderboard">
+              <Button size="sm">عرض جدول المتصدرين</Button>
+            </Link>
+            <Link href="/labs">
+              <Button variant="outline" size="sm">
+                استكشاف المختبرات
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isShortlisted = shortlistedUsernames.includes(student.username);
+  const skillMetrics = generateStudentSkillMetrics(student.labXp);
+  const radarAxes = generateRadarChartAxes(student.labXp);
+  const overallLevel = calculateSkillLevelFromXp(Math.round(student.totalXp / 3.5));
+
+  const earnedBadges = ACHIEVEMENT_BADGES.filter((b) =>
+    student.earnedBadges.includes(b.id)
+  );
+  const avatarSrc = student.photoURL || student.avatarUrl;
 
   const handleShareProfile = () => {
     const url =
@@ -130,9 +245,20 @@ export function StudentProfileClient({
       <section aria-label="ملف الطالب التعريفي" className="mb-6 md:mb-10 rounded-[16px] border border-[#E3E8F0] bg-white p-5 sm:p-9 dark:border-[#1E325C] dark:bg-[#0A1630]">
         <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-start">
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:gap-6">
-            <div className="flex h-16 w-16 sm:h-20 sm:w-20 shrink-0 items-center justify-center rounded-[14px] bg-[#0A1630] text-xl sm:text-2xl font-semibold text-[#FAFBFC] dark:bg-[#2F6BFF]">
-              {student.initials}
-            </div>
+            {avatarSrc ? (
+              <Image
+                src={avatarSrc}
+                alt={student.fullName}
+                width={80}
+                height={80}
+                unoptimized
+                className="h-16 w-16 sm:h-20 sm:w-20 shrink-0 rounded-[14px] border border-[#E3E8F0] object-cover dark:border-[#1E325C]"
+              />
+            ) : (
+              <div className="flex h-16 w-16 sm:h-20 sm:w-20 shrink-0 items-center justify-center rounded-[14px] bg-[#0A1630] text-xl sm:text-2xl font-semibold text-[#FAFBFC] dark:bg-[#2F6BFF]">
+                {student.initials}
+              </div>
+            )}
 
             <div>
               <div className="flex flex-wrap items-center gap-2.5">
@@ -308,17 +434,26 @@ export function StudentProfileClient({
               </div>
 
               {/* Practical Achievement nodes */}
-              {student.topAchievements.map((ach, idx) => (
-                <div key={idx} className="relative">
-                  <span className="absolute -right-[29px] top-1.5 h-2.5 w-2.5 rounded-full bg-[#2F6BFF]" />
-                  <span className="font-tabular text-xs text-[#0A1630]/55 dark:text-[#94A3B8]">
-                    VERIFIED LAB MILESTONE 0{idx + 1}
-                  </span>
-                  <p className="mt-1 text-sm font-medium text-[#0A1630] dark:text-[#FAFBFC]">
-                    {ach}
+              {student.topAchievements.length > 0 ? (
+                student.topAchievements.map((ach, idx) => (
+                  <div key={idx} className="relative">
+                    <span className="absolute -right-[29px] top-1.5 h-2.5 w-2.5 rounded-full bg-[#2F6BFF]" />
+                    <span className="font-tabular text-xs text-[#0A1630]/55 dark:text-[#94A3B8]">
+                      VERIFIED LAB MILESTONE 0{idx + 1}
+                    </span>
+                    <p className="mt-1 text-sm font-medium text-[#0A1630] dark:text-[#FAFBFC]">
+                      {ach}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <div className="relative">
+                  <span className="absolute -right-[29px] top-1.5 h-2.5 w-2.5 rounded-full bg-[#CBD5E1] dark:bg-[#1E325C]" />
+                  <p className="text-xs text-[#526077] dark:text-[#94A3B8]">
+                    لم تُسجَّل إنجازات مختبرية موثقة بعد.
                   </p>
                 </div>
-              ))}
+              )}
             </div>
           </section>
         </div>
@@ -348,24 +483,30 @@ export function StudentProfileClient({
             </div>
 
             <div className="space-y-3">
-              {earnedBadges.map((badge, idx) => (
-                <div
-                  key={badge.id}
-                  className="flex items-start justify-between gap-3 rounded-[12px] border border-[#E3E8F0] bg-[#FAFBFC] p-3.5 dark:border-[#1E325C] dark:bg-[#0A1630]"
-                >
-                  <div>
-                    <h3 className="text-sm font-medium text-[#0A1630] dark:text-[#FAFBFC]">
-                      {badge.title}
-                    </h3>
-                    <p className="mt-0.5 text-xs text-[#0A1630]/65 dark:text-[#94A3B8]">
-                      {badge.description}
-                    </p>
+              {earnedBadges.length > 0 ? (
+                earnedBadges.map((badge, idx) => (
+                  <div
+                    key={badge.id}
+                    className="flex items-start justify-between gap-3 rounded-[12px] border border-[#E3E8F0] bg-[#FAFBFC] p-3.5 dark:border-[#1E325C] dark:bg-[#0A1630]"
+                  >
+                    <div>
+                      <h3 className="text-sm font-medium text-[#0A1630] dark:text-[#FAFBFC]">
+                        {badge.title}
+                      </h3>
+                      <p className="mt-0.5 text-xs text-[#0A1630]/65 dark:text-[#94A3B8]">
+                        {badge.description}
+                      </p>
+                    </div>
+                    <span className="font-tabular text-xs font-medium text-[#2F6BFF]">
+                      0{idx + 1}
+                    </span>
                   </div>
-                  <span className="font-tabular text-xs font-medium text-[#2F6BFF]">
-                    0{idx + 1}
-                  </span>
+                ))
+              ) : (
+                <div className="rounded-[12px] border border-dashed border-[#E3E8F0] p-4 text-center text-xs text-[#526077] dark:border-[#1E325C] dark:text-[#94A3B8]">
+                  لم يحصل الطالب على أوسمة موثقة حتى الآن.
                 </div>
-              ))}
+              )}
             </div>
           </section>
         </div>

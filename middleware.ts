@@ -69,10 +69,11 @@ export async function middleware(request: NextRequest) {
   }
 
   const sessionCookie = request.cookies.get('seftlab_session')?.value;
-  const roleCookie = (
-    request.cookies.get('seftlab_role')?.value ||
-    request.cookies.get('tadreebak_role')?.value
-  ) as UserRole | undefined;
+  const seftlabRoleCookie = request.cookies.get('seftlab_role')?.value;
+  const tadreebakRoleCookie = request.cookies.get('tadreebak_role')?.value;
+  const roleCookie = (seftlabRoleCookie || tadreebakRoleCookie) as
+    | UserRole
+    | undefined;
 
   // Verify cryptographic HMAC-SHA256 session token (never trust unsigned cookies or query params)
   let sessionRole: UserRole | undefined;
@@ -91,13 +92,14 @@ export async function middleware(request: NextRequest) {
           typeof verified.email === 'string'
             ? verified.email.toLowerCase().trim()
             : undefined;
-        if (
+        if (isSuperAdminEmail(sessionEmail)) {
+          sessionRole = 'admin';
+          hasValidSession = true;
+        } else if (
           typeof verified.role === 'string' &&
           VALID_ROLES.includes(verified.role as UserRole)
         ) {
           sessionRole = verified.role as UserRole;
-        }
-        if (sessionRole || isSuperAdminEmail(sessionEmail)) {
           hasValidSession = true;
         }
       }
@@ -146,8 +148,15 @@ export async function middleware(request: NextRequest) {
   // Admin / Super Admin users have access to all dashboards
   if (effectiveRole === 'admin') {
     const response = NextResponse.next();
-    if (roleCookie !== 'admin') {
+    if (seftlabRoleCookie !== 'admin' || tadreebakRoleCookie !== 'admin') {
       response.cookies.set('seftlab_role', 'admin', {
+        httpOnly: false,
+        secure: isProd,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7,
+      });
+      response.cookies.set('tadreebak_role', 'admin', {
         httpOnly: false,
         secure: isProd,
         sameSite: 'lax',
